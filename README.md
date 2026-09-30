@@ -2,6 +2,8 @@
 
 An interactive, in-browser visualization of **Ant Colony Optimization (ACO)** solving the **Capacitated Vehicle Routing Problem (CVRP)**. Place a base and customers on a map, tune the algorithm, press play and watch each ant build its tour, the pheromone trails emerge and the best route improve.
 
+**Live demo:** <https://pablof27.github.io/vrp-app/>
+
 > **Academic context** — This project is based on **"ACO for VRP"**, a project for the **Multi-Agent Systems** course of the **Master's in Artificial Intelligence**. The original ant colony model has been extended into a step-by-step simulation with an interactive visual interface.
 
 ![Ant colony solving a VRP instance in real time](docs/images/demo.gif)
@@ -177,6 +179,10 @@ Then open the URL printed by Vite (by default <http://localhost:5173>).
 | `npm run build` | Build the production bundle into `dist/`. |
 | `npm run preview` | Serve the production build locally. |
 | `npm test` | Run the unit tests with the Node.js test runner. |
+
+### Deployment
+
+The app is deployed to GitHub Pages by the workflow in [.github/workflows/deploy.yml](.github/workflows/deploy.yml). Every push to `main` runs the tests, builds the app and publishes `dist/`. The build uses the `/vrp-app/` base path configured in [vite.config.js](vite.config.js); change it if the repository is renamed.
 
 ## Using the app
 
