@@ -28,6 +28,7 @@ const DEFAULT_PARAMS = {
   toursPerFrame: 20,
   pheromoneStyle: 'heat',
   showBestOverlay: false,
+  showAntTrace: true,
 };
 
 const TOOLS = [
@@ -139,6 +140,14 @@ export function App() {
             <label className="check">
               <input
                 type="checkbox"
+                checked={params.showAntTrace}
+                onChange={(e) => setParam('showAntTrace', e.target.checked)}
+              />
+              Trace current ant
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
                 checked={params.showBestOverlay}
                 onChange={(e) => setParam('showBestOverlay', e.target.checked)}
               />
@@ -157,6 +166,7 @@ export function App() {
               newDemand={params.newDemand}
               pheromoneStyle={params.pheromoneStyle}
               showBestOverlay={params.showBestOverlay}
+              showAntTrace={params.showAntTrace}
             />
           </div>
 

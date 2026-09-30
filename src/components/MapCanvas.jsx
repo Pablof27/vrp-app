@@ -29,7 +29,7 @@ function drawScene(ctx, sim, props, { width, dpr }) {
       drawPolyline(ctx, sim.bestPath.path.map((i) => simNodes[i]), scale, theme.best, 2.5, [8, 6]);
     }
 
-    if (ant) {
+    if (ant && props.showAntTrace) {
       const walked = ant.state.path.slice(0, -1).map((i) => simNodes[i]);
       walked.push(antPosition(ant, simNodes));
       drawPolyline(ctx, walked, scale, color, 1.5);
@@ -80,14 +80,14 @@ function drawScene(ctx, sim, props, { width, dpr }) {
 }
 
 export function MapCanvas({
-  simRef, nodes, onNodesChange, selected, onSelect, tool, newDemand, pheromoneStyle, showBestOverlay,
+  simRef, nodes, onNodesChange, selected, onSelect, tool, newDemand, pheromoneStyle, showBestOverlay, showAntTrace,
 }) {
   const canvasRef = useRef(null);
   const size = useCanvasSize(canvasRef);
   const dragRef = useRef(null);
   const propsRef = useRef(null);
   const dirtyRef = useRef(true);
-  propsRef.current = { nodes, selected, pheromoneStyle, showBestOverlay, size };
+  propsRef.current = { nodes, selected, pheromoneStyle, showBestOverlay, showAntTrace, size };
 
   useEffect(() => {
     dirtyRef.current = true;
