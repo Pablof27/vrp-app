@@ -19,7 +19,8 @@ function drawScene(ctx, sim, props, { width, dpr }) {
   ctx.fillRect(0, 0, width, width * WORLD_HEIGHT);
 
   const simNodes = sim?.vrp.nodes;
-  const tracked = sim?.ants[props.trackedAnt];
+  const ant = sim?.ant;
+  const color = antColor(sim?.iter ?? 0);
 
   if (sim && simNodes.length > 1) {
     drawPheromones(ctx, simNodes, sim.pheromones, scale, props.pheromoneStyle);
@@ -28,14 +29,14 @@ function drawScene(ctx, sim, props, { width, dpr }) {
       drawPolyline(ctx, sim.bestPath.path.map((i) => simNodes[i]), scale, theme.best, 2.5, [8, 6]);
     }
 
-    if (tracked) {
-      const walked = tracked.state.path.slice(0, -1).map((i) => simNodes[i]);
-      walked.push(antPosition(tracked, simNodes));
-      drawPolyline(ctx, walked, scale, antColor(props.trackedAnt), 2);
+    if (ant) {
+      const walked = ant.state.path.slice(0, -1).map((i) => simNodes[i]);
+      walked.push(antPosition(ant, simNodes));
+      drawPolyline(ctx, walked, scale, color, 1.5);
     }
   }
 
-  const visited = new Set(tracked?.state.path);
+  const visited = new Set(ant?.state.path);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   props.nodes.forEach((node, i) => {
@@ -66,32 +67,27 @@ function drawScene(ctx, sim, props, { width, dpr }) {
     }
   }
 
-  if (sim && simNodes.length > 1) {
-    sim.ants.forEach((ant, i) => {
-      const p = antPosition(ant, simNodes);
-      const isTracked = i === props.trackedAnt;
-      ctx.beginPath();
-      ctx.arc(p.x * scale, p.y * scale, isTracked ? 5.5 : 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = antColor(i);
-      ctx.fill();
-      if (isTracked) {
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = theme.tracked;
-        ctx.stroke();
-      }
-    });
+  if (ant && simNodes.length > 1) {
+    const position = antPosition(ant, simNodes);
+    ctx.beginPath();
+    ctx.arc(position.x * scale, position.y * scale, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = theme.tracked;
+    ctx.stroke();
   }
 }
 
 export function MapCanvas({
-  simRef, nodes, onNodesChange, selected, onSelect, tool, newDemand, pheromoneStyle, showBestOverlay, trackedAnt,
+  simRef, nodes, onNodesChange, selected, onSelect, tool, newDemand, pheromoneStyle, showBestOverlay,
 }) {
   const canvasRef = useRef(null);
   const size = useCanvasSize(canvasRef);
   const dragRef = useRef(null);
   const propsRef = useRef(null);
   const dirtyRef = useRef(true);
-  propsRef.current = { nodes, selected, pheromoneStyle, showBestOverlay, trackedAnt, size };
+  propsRef.current = { nodes, selected, pheromoneStyle, showBestOverlay, size };
 
   useEffect(() => {
     dirtyRef.current = true;

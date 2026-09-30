@@ -51,15 +51,13 @@ export function App() {
   const [nodes, setNodes] = useState(() => randomMap(DEFAULT_PARAMS));
   const [selected, setSelected] = useState(null);
   const [tool, setTool] = useState('add');
-  const [trackedAntRaw, setTrackedAnt] = useState(0);
-  const trackedAnt = Math.min(trackedAntRaw, params.m - 1);
 
   const setParam = (key, value) => setParams((p) => ({ ...p, [key]: value }));
 
   const maxDemand = useMemo(() => Math.max(0, ...nodes.slice(1).map((n) => n.demand)), [nodes]);
   const canRun = nodes.length >= 2 && maxDemand <= params.capacity;
 
-  const { simRef, snapshot, running, setRunning, reset, step, error } = useColonySimulation(nodes, params, trackedAnt, canRun);
+  const { simRef, snapshot, running, setRunning, reset, step, error } = useColonySimulation(nodes, params, canRun);
 
   const trips = snapshot ? splitTrips(snapshot.bestPath).length : 0;
   const hasBest = snapshot && Number.isFinite(snapshot.bestLength);
@@ -79,7 +77,7 @@ export function App() {
         </div>
         <div className="stats">
           <span>Tours <b>{snapshot?.iter ?? 0}</b></span>
-          <span>Colonies <b>{Math.floor((snapshot?.iter ?? 0) / params.m)}</b></span>
+          <span>Global updates <b>{snapshot?.globalUpdates ?? 0}</b></span>
           <span>Best <b>{hasBest ? snapshot.bestLength.toFixed(3) : '—'}</b></span>
           <span>Vehicles <b>{hasBest ? trips : '—'}</b></span>
           <span>Customers <b>{nodes.length - 1}</b></span>
@@ -159,7 +157,6 @@ export function App() {
               newDemand={params.newDemand}
               pheromoneStyle={params.pheromoneStyle}
               showBestOverlay={params.showBestOverlay}
-              trackedAnt={trackedAnt}
             />
           </div>
 
@@ -189,9 +186,7 @@ export function App() {
             <h3>Next-node probability</h3>
             <ProbabilityBars
               decision={snapshot?.decision}
-              antCount={params.m}
-              trackedAnt={trackedAnt}
-              onTrackedAntChange={setTrackedAnt}
+              activeAnt={snapshot?.activeAnt}
               fastMode={params.fastMode}
             />
           </section>

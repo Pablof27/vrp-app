@@ -42,7 +42,7 @@ function computeTau0(vrp, params) {
   return lnn > 0 ? 1 / (vrp.nodes.length * lnn) : 1;
 }
 
-function createSimulation(nodes, params) {
+export function createSimulation(nodes, params) {
   const vrp = colony.buildVrp(nodes, params.capacity);
   const tau0 = computeTau0(vrp, params);
   return {
@@ -52,14 +52,14 @@ function createSimulation(nodes, params) {
     pheromones: colony.resetPheromones({ n: nodes.length, tau0 }),
     bestPath: { path: [], length: Infinity },
     iter: 0,
-    ants: [],
+    globalUpdates: 0,
+    ant: null,
     history: [],
     version: 0,
   };
 }
 
-// Adapts the running colony to an edited map: pheromones and ants are kept, the best route is re-evaluated.
-function updateSimulation(sim, nodes, params) {
+export function updateSimulation(sim, nodes, params) {
   const newIds = nodes.map((node) => node.id);
   if (nodes.length === 0 || newIds[0] !== sim.nodeIds[0]) return createSimulation(nodes, params);
 
@@ -87,20 +87,21 @@ function updateSimulation(sim, nodes, params) {
     else sim.history.push(point);
   }
 
-  sim.ants.forEach((ant, k) => {
+  if (sim.ant) {
+    const ant = sim.ant;
     const from = newIndexOf[ant.from];
     const to = newIndexOf[ant.to];
     if (from < 0 || to < 0 || !colony.adaptAnt(sim.vrp, ant.state, newIndexOf)) {
-      sim.ants[k] = newAnt(sim);
-      return;
+      sim.ant = newAnt(sim);
+    } else {
+      const fraction = ant.edgeLength > 0 ? ant.progress / ant.edgeLength : 1;
+      ant.from = from;
+      ant.to = to;
+      ant.edgeLength = sim.vrp.distances[from][to];
+      ant.progress = fraction * ant.edgeLength;
+      if (structural) ant.decision = null;
     }
-    const fraction = ant.edgeLength > 0 ? ant.progress / ant.edgeLength : 1;
-    ant.from = from;
-    ant.to = to;
-    ant.edgeLength = sim.vrp.distances[from][to];
-    ant.progress = fraction * ant.edgeLength;
-    if (structural) ant.decision = null;
-  });
+  }
 
   sim.version++;
   return sim;
@@ -121,23 +122,28 @@ function newAnt(sim) {
   return { state: colony.createAnt(sim.vrp), from: 0, to: 0, progress: 0, edgeLength: 0, decision: null };
 }
 
-function syncAnts(sim, m) {
-  while (sim.ants.length < m) sim.ants.push(newAnt(sim));
-  if (sim.ants.length > m) sim.ants.length = m;
+function ensureAnt(sim) {
+  if (!sim.ant) sim.ant = newAnt(sim);
+  return sim.ant;
 }
 
 function recordImprovement(sim, before) {
   if (sim.bestPath.length < before) sim.history.push({ iter: sim.iter, length: sim.bestPath.length });
 }
 
+function completeAnt(sim, state, mp) {
+  const before = sim.bestPath.length;
+  const result = colony.finishAnt(state, mp, sim.pheromones, sim.bestPath, sim.iter);
+  sim.pheromones = result.pheromones;
+  sim.iter++;
+  if (sim.iter % mp.m === 0) sim.globalUpdates++;
+  recordImprovement(sim, before);
+}
+
 // Called when an ant reaches the node it was heading to: finish the tour if needed, then decide the next arc.
 function arrive(sim, ant, mp) {
   if (ant.state.done) {
-    const before = sim.bestPath.length;
-    const { pheromones } = colony.finishAnt(ant.state, mp, sim.pheromones, sim.bestPath, sim.iter);
-    sim.pheromones = pheromones;
-    sim.iter++;
-    recordImprovement(sim, before);
+    completeAnt(sim, ant.state, mp);
     ant.state = colony.createAnt(sim.vrp);
   }
   const capacity = ant.state.capacity;
@@ -149,41 +155,37 @@ function arrive(sim, ant, mp) {
   ant.edgeLength = sim.vrp.distances[decision.from][decision.next];
 }
 
-function advanceAnimated(sim, params, dt) {
+export function advanceAnimated(sim, params, dt) {
   const mp = modelParams(sim, params);
-  syncAnts(sim, params.m);
-  const budget = params.speed * dt;
-  for (const ant of sim.ants) {
-    let travel = budget;
-    for (let hops = 0; hops < MAX_HOPS_PER_FRAME; hops++) {
-      const remaining = ant.edgeLength - ant.progress;
-      if (travel < remaining) {
-        ant.progress += travel;
-        break;
-      }
-      travel -= remaining;
-      arrive(sim, ant, mp);
+  const ant = ensureAnt(sim);
+  let travel = params.speed * dt;
+  for (let hops = 0; hops < MAX_HOPS_PER_FRAME; hops++) {
+    const remaining = ant.edgeLength - ant.progress;
+    if (travel < remaining) {
+      ant.progress += travel;
+      break;
     }
+    travel -= remaining;
+    arrive(sim, ant, mp);
   }
   sim.version++;
 }
 
-function hopAll(sim, params) {
+export function stepSimulation(sim, params) {
   const mp = modelParams(sim, params);
-  syncAnts(sim, params.m);
-  for (const ant of sim.ants) arrive(sim, ant, mp);
+  arrive(sim, ensureAnt(sim), mp);
   sim.version++;
 }
 
-function advanceFast(sim, params, tours) {
+export function advanceFast(sim, params, tours) {
   const mp = modelParams(sim, params);
-  sim.ants = [];
   for (let k = 0; k < tours; k++) {
-    const before = sim.bestPath.length;
-    const result = colony.advance(sim.vrp, mp, sim.pheromones, sim.bestPath, sim.iter);
-    sim.pheromones = result.pheromones;
-    sim.iter++;
-    recordImprovement(sim, before);
+    const ant = ensureAnt(sim);
+    while (!ant.state.done) {
+      colony.step(sim.vrp, mp, sim.pheromones, ant.state, sim.bestPath.length);
+    }
+    completeAnt(sim, ant.state, mp);
+    sim.ant = null;
   }
   sim.version++;
 }
@@ -204,14 +206,12 @@ function describeDecision(sim, decision) {
   };
 }
 
-export function useColonySimulation(nodes, params, trackedAnt, canRun) {
+export function useColonySimulation(nodes, params, canRun) {
   const simRef = useRef(null);
   const nodesRef = useRef(nodes);
   const paramsRef = useRef(params);
-  const trackedRef = useRef(trackedAnt);
   nodesRef.current = nodes;
   paramsRef.current = params;
-  trackedRef.current = trackedAnt;
 
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
@@ -222,13 +222,15 @@ export function useColonySimulation(nodes, params, trackedAnt, canRun) {
     if (!sim) return;
     setSnapshot({
       iter: sim.iter,
+      globalUpdates: sim.globalUpdates,
+      activeAnt: sim.ant ? sim.iter + 1 : null,
       bestLength: sim.bestPath.length,
       bestPath: sim.bestPath.path.slice(),
       history: sim.history.slice(),
       nodes: sim.vrp.nodes,
       tau0: sim.tau0,
       range: pheromoneRange(sim.pheromones),
-      decision: describeDecision(sim, sim.ants[trackedRef.current]?.decision),
+      decision: describeDecision(sim, sim.ant?.decision),
     });
   }, []);
 
@@ -255,8 +257,6 @@ export function useColonySimulation(nodes, params, trackedAnt, canRun) {
     setError(null);
     publish();
   }, [nodes, params.capacity, params.tau0, params.autoTau0, publish]);
-
-  useEffect(publish, [trackedAnt, publish]);
 
   useEffect(() => {
     if (!canRun) setRunning(false);
@@ -293,7 +293,7 @@ export function useColonySimulation(nodes, params, trackedAnt, canRun) {
     const p = paramsRef.current;
     guarded(() => {
       if (p.fastMode) advanceFast(simRef.current, p, p.toursPerFrame);
-      else hopAll(simRef.current, p);
+      else stepSimulation(simRef.current, p);
     });
     publish();
   }, [guarded, publish]);

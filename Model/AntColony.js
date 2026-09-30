@@ -98,7 +98,7 @@ export class AntColony {
 
         pheromones = this.evaporatePheromones(pheromones, params);
 
-        if (iter !== 0 && iter % params.m === 0) {
+        if ((iter + 1) % params.m === 0) {
             pheromones = this.globalUpdate(pheromones, bestPath.path, bestPath.length, params);
         }
 

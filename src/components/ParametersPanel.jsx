@@ -7,7 +7,7 @@ function Slider({ label, hint, value, min, max, step, onChange, format = (v) => 
         <span>{label}</span>
         <output>{format(value)}</output>
       </span>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+      <input type="range" aria-label={label} min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
       {hint && <small>{hint}</small>}
     </label>
   );
@@ -94,8 +94,7 @@ export function ParametersPanel({
       <section>
         <h3>Ant Colony System</h3>
         <Slider
-          label="Ants per colony (m)"
-          hint="Ants walking at once; global update every m tours."
+          label="Global update interval (m)"
           value={params.m}
           min={1}
           max={50}

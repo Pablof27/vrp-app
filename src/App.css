@@ -50,6 +50,7 @@ input:disabled { opacity: 0.6; }
 
 .topbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 24px;
   padding: 10px 16px;
@@ -140,7 +141,7 @@ input:disabled { opacity: 0.6; }
 .chart .change-label { fill: var(--explore); }
 .chart-empty, .muted { color: var(--muted); font-size: 12px; }
 
-.prob-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 6px; }
+.prob-header { display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 6px; }
 .legend { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-left: 6px; }
 .swatch.exploit, .seg.exploit { background: var(--exploit); }

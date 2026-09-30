@@ -2,16 +2,11 @@ const MAX_ROWS = 12;
 
 const nodeLabel = (i) => (i === 0 ? 'Base' : `#${i}`);
 
-export function ProbabilityBars({ decision, antCount, trackedAnt, onTrackedAntChange, fastMode }) {
+export function ProbabilityBars({ decision, activeAnt, fastMode }) {
   return (
     <div className="prob">
       <div className="prob-header">
-        <label>
-          Track ant{' '}
-          <select value={trackedAnt} onChange={(e) => onTrackedAntChange(Number(e.target.value))}>
-            {Array.from({ length: antCount }, (_, i) => <option key={i} value={i}>{i + 1}</option>)}
-          </select>
-        </label>
+        <span>Ant <b>{activeAnt ?? '-'}</b></span>
         <span className="legend">
           <i className="swatch exploit" /> exploit (q0)
           <i className="swatch explore" /> explore
