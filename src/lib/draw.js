@@ -16,6 +16,16 @@ export const GRAY_GRADIENT_CSS = 'linear-gradient(to right, rgba(220,220,220,0.4
 export const TOP_PHEROMONE_PAIRS = 20;
 
 export const TRIP_COLORS = ['#f97316', '#22c55e', '#3b82f6', '#e11d48', '#a855f7', '#eab308', '#14b8a6', '#ec4899'];
+// Trip k is walked by colony k % colonies, so colony colors match trip colors whenever there are enough colonies.
+export const MAX_COLONIES = TRIP_COLORS.length;
+
+export function colonyColor(c) {
+  return TRIP_COLORS[c % TRIP_COLORS.length];
+}
+
+function hexRgb(hex) {
+  return [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+}
 
 export const THEMES = {
   light: {
@@ -94,16 +104,19 @@ export function rankPheromonePairs(pheromones, nodes) {
   }));
 }
 
-export function drawPheromones(ctx, nodes, pheromones, scale, style) {
+// `tint` (a colony color) replaces the style's palette; `highlightedOnly` skips the faint context edges.
+export function drawPheromones(ctx, nodes, pheromones, scale, style, { tint, highlightedOnly = false } = {}) {
   if (nodes.length < 2 || pheromones.length !== nodes.length) return;
   const edges = rankPheromonePairs(pheromones, nodes);
   const contextOpacity = Math.min(0.12, 2.4 / nodes.length);
+  const tintRgb = tint && hexRgb(tint);
   ctx.save();
   ctx.lineCap = 'round';
   for (let index = edges.length - 1; index >= 0; index--) {
     const { from, to, strength, highlighted } = edges[index];
+    if (highlightedOnly && !highlighted) continue;
     const opacity = highlighted ? 0.4 + 0.5 * strength : contextOpacity + 0.2 * strength;
-    const color = style === 'gray' ? [220, 220, 220] : heatRgb(0.55 + 0.45 * strength);
+    const color = tintRgb ?? (style === 'gray' ? [220, 220, 220] : heatRgb(0.55 + 0.45 * strength));
     ctx.strokeStyle = `rgba(${color.join(',')},${opacity})`;
     ctx.lineWidth = style === 'heat'
       ? (highlighted ? 1.2 : 0.7)
@@ -131,9 +144,10 @@ export function drawPolyline(ctx, points, scale, color, width, dash = []) {
   ctx.restore();
 }
 
-export function drawTrips(ctx, nodes, path, scale, width) {
+// With several colonies each trip takes its colony's color; with one colony every trip gets its own color.
+export function drawTrips(ctx, nodes, path, scale, width, colonies = 1) {
   splitTrips(path).forEach((trip, k) => {
-    drawPolyline(ctx, trip.map((i) => nodes[i]), scale, TRIP_COLORS[k % TRIP_COLORS.length], width);
+    drawPolyline(ctx, trip.map((i) => nodes[i]), scale, colonyColor(colonies > 1 ? k % colonies : k), width);
   });
 }
 

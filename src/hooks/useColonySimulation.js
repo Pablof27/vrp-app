@@ -75,6 +75,13 @@ export function updateSimulation(sim, nodes, params) {
   sim.nodeIds = newIds;
   sim.tau0 = computeTau0(sim.vrp, params);
   if (structural) sim.pheromones = colony.remapPheromones(sim.pheromones, oldIndexOf, sim.tau0);
+  const colonies = params.colonies ?? 1;
+  const resized = sim.pheromones.length !== colonies;
+  if (resized) {
+    const n = sim.vrp.nodes.length;
+    sim.pheromones = Array.from({ length: colonies }, (_, c) =>
+      sim.pheromones[c] ?? colony.resetPheromones({ n, tau0: sim.tau0, colonies: 1 })[0]);
+  }
 
   if (sim.bestPath.path.length > 0) {
     const repaired = colony.repairPath(sim.vrp, sim.bestPath.path.map((i) => newIndexOf[i]));
@@ -99,8 +106,11 @@ export function updateSimulation(sim, nodes, params) {
       ant.to = to;
       ant.edgeLength = sim.vrp.distances[from][to];
       ant.progress = fraction * ant.edgeLength;
-      if (structural) ant.decision = null;
+      if (structural || resized) ant.decision = null;
     }
+    // Trip k always belongs to colony k % colonies, which may have changed.
+    const trips = sim.ant.state.path.slice(1).filter((i) => i === 0).length;
+    sim.ant.state.colony = trips % colonies;
   }
 
   sim.version++;
@@ -130,7 +140,13 @@ function ensureAnt(sim) {
 }
 
 function historyEntry(sim, changed) {
-  const entry = { iter: sim.iter, length: sim.bestPath.length, path: sim.bestPath.path.slice(), nodes: sim.vrp.nodes };
+  const entry = {
+    iter: sim.iter,
+    length: sim.bestPath.length,
+    path: sim.bestPath.path.slice(),
+    nodes: sim.vrp.nodes,
+    colonies: sim.pheromones.length,
+  };
   return changed ? { ...entry, changed: true } : entry;
 }
 
@@ -155,7 +171,7 @@ function arrive(sim, ant, mp) {
   }
   const capacity = ant.state.capacity;
   const decision = colony.step(sim.vrp, mp, sim.pheromones, ant.state, sim.bestPath.length);
-  ant.decision = { ...decision, capacity, q0: mp.q0 };
+  ant.decision = { ...decision, capacity, q0: mp.q0, nextColony: ant.state.colony };
   ant.from = decision.from;
   ant.to = decision.next;
   ant.progress = 0;
@@ -206,6 +222,8 @@ function describeDecision(sim, decision) {
     chosen: decision.chosen,
     exploited: decision.exploited,
     capacity: decision.capacity,
+    colony: decision.colony,
+    nextColony: decision.nextColony,
     rows: decision.candidates.map((node, i) => {
       const demand = sim.vrp.nodes[node].demand;
       return { node, demand, fits: demand <= decision.capacity, ...probabilities[i] };
@@ -213,8 +231,25 @@ function describeDecision(sim, decision) {
   };
 }
 
-export function activePheromones(sim) {
-  return sim.pheromones[sim.ant?.state.colony ?? 0];
+// Colony of the arc the ant is walking; ant.state.colony already points to the next one while it returns to reload.
+export function walkingColony(sim) {
+  if (!sim.ant) return 0;
+  return colony.arcColonies(sim.ant.state.path, sim.pheromones.length).at(-1) ?? 0;
+}
+
+// choice: 'active' (the walking colony), 'all', or a colony index.
+export function shownPheromones(sim, choice) {
+  if (choice === 'all') return sim.pheromones.map((matrix, c) => ({ colony: c, matrix }));
+  const c = Number.isInteger(choice) && choice < sim.pheromones.length ? choice : walkingColony(sim);
+  return [{ colony: c, matrix: sim.pheromones[c] }];
+}
+
+function shownRange(shown) {
+  const ranges = shown.map(({ matrix }) => pheromoneRange(matrix));
+  return {
+    min: Math.min(...ranges.map((r) => r.min)),
+    max: Math.max(...ranges.map((r) => r.max)),
+  };
 }
 
 export function useColonySimulation(nodes, params, canRun) {
@@ -231,16 +266,20 @@ export function useColonySimulation(nodes, params, canRun) {
   const publish = useCallback(() => {
     const sim = simRef.current;
     if (!sim) return;
+    const shown = shownPheromones(sim, paramsRef.current.pheromoneColony);
     setSnapshot({
       iter: sim.iter,
       globalUpdates: sim.globalUpdates,
       activeAnt: sim.ant ? sim.iter + 1 : null,
+      colonies: sim.pheromones.length,
+      activeColony: walkingColony(sim),
+      pheromoneColonies: shown.map((s) => s.colony),
       bestLength: sim.bestPath.length,
       bestPath: sim.bestPath.path.slice(),
       history: sim.history.slice(),
       nodes: sim.vrp.nodes,
       tau0: sim.tau0,
-      range: pheromoneRange(activePheromones(sim)),
+      range: shownRange(shown),
       decision: describeDecision(sim, sim.ant?.decision),
     });
   }, []);
@@ -267,7 +306,11 @@ export function useColonySimulation(nodes, params, canRun) {
     simRef.current = sim ? updateSimulation(sim, nodes, paramsRef.current) : createSimulation(nodes, paramsRef.current);
     setError(null);
     publish();
-  }, [nodes, params.capacity, params.tau0, params.autoTau0, publish]);
+  }, [nodes, params.capacity, params.tau0, params.autoTau0, params.colonies, publish]);
+
+  useEffect(() => {
+    publish();
+  }, [params.pheromoneColony, publish]);
 
   useEffect(() => {
     if (!canRun) setRunning(false);

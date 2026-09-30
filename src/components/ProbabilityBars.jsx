@@ -1,23 +1,38 @@
+import { colonyColor } from '../lib/draw.js';
+
 const MAX_ROWS = 12;
 
 const nodeLabel = (i) => (i === 0 ? 'Base' : `#${i}`);
 
-export function ProbabilityBars({ decision, activeAnt, fastMode }) {
+function ColonyTag({ colony }) {
+  return (
+    <b className="colony-tag">
+      <i className="colony-dot" style={{ background: colonyColor(colony) }} />
+      Colony {colony + 1}
+    </b>
+  );
+}
+
+export function ProbabilityBars({ decision, activeAnt, colonies = 1, fastMode }) {
+  const multi = colonies > 1 && !fastMode;
   return (
     <div className="prob">
       <div className="prob-header">
-        <span>Ant <b>{activeAnt ?? '-'}</b></span>
+        <span>
+          Ant <b>{activeAnt ?? '-'}</b>
+          {multi && decision && <> · <ColonyTag colony={decision.colony} /></>}
+        </span>
         <span className="legend">
           <i className="swatch exploit" /> exploit (q0)
           <i className="swatch explore" /> explore
         </span>
       </div>
-      <DecisionBody decision={decision} fastMode={fastMode} />
+      <DecisionBody decision={decision} fastMode={fastMode} multi={multi} />
     </div>
   );
 }
 
-function DecisionBody({ decision, fastMode }) {
+function DecisionBody({ decision, fastMode, multi }) {
   if (fastMode) return <p className="muted">Individual ant decisions are not shown in fast mode.</p>;
   if (!decision) return <p className="muted">Press play or step to see the next-node probabilities.</p>;
   if (decision.kind === 'finish') return <p className="muted">All customers served — returning to the base.</p>;
@@ -36,6 +51,7 @@ function DecisionBody({ decision, fastMode }) {
         At <b>{nodeLabel(decision.from)}</b> with load left <b>{decision.capacity}</b>: picked{' '}
         <b>{nodeLabel(decision.chosen)}</b> by {decision.exploited ? 'exploitation (q < q0)' : 'roulette wheel'}
         {decision.kind === 'reload' && <span className="warn"> — doesn&apos;t fit, back to base</span>}
+        {decision.kind === 'reload' && multi && <>; <ColonyTag colony={decision.nextColony} /> takes over</>}
       </p>
       {shown.map((r) => (
         <div

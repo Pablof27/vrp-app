@@ -1,15 +1,44 @@
 import { useEffect, useRef } from 'react';
+import { AntColony } from '../../Model/AntColony.js';
 import {
-  THEMES, WORLD_HEIGHT, antColor, drawDepot, drawPheromones, drawPolyline, drawTrips, nodeRadius, useCanvasSize,
+  THEMES, WORLD_HEIGHT, antColor, colonyColor, drawDepot, drawPheromones, drawPolyline, drawTrips, nodeRadius,
+  useCanvasSize,
 } from '../lib/draw.js';
 import { withId } from '../lib/nodes.js';
-import { activePheromones } from '../hooks/useColonySimulation.js';
+import { shownPheromones, walkingColony } from '../hooks/useColonySimulation.js';
+
+const model = new AntColony();
 
 function antPosition(ant, nodes) {
   const a = nodes[ant.from];
   const b = nodes[ant.to];
   const f = ant.edgeLength > 0 ? ant.progress / ant.edgeLength : 1;
   return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+}
+
+// Walked arcs grouped into runs of the same colony, each drawn in that colony's color.
+function drawColonyTrace(ctx, ant, nodes, colonies, scale) {
+  const arcs = model.arcColonies(ant.state.path, colonies);
+  const points = ant.state.path.slice(0, -1).map((i) => nodes[i]);
+  points.push(antPosition(ant, nodes));
+  let start = 0;
+  for (let k = 1; k <= arcs.length; k++) {
+    if (k === arcs.length || arcs[k] !== arcs[start]) {
+      drawPolyline(ctx, points.slice(start, k + 1), scale, colonyColor(arcs[start]), 1.5);
+      start = k;
+    }
+  }
+}
+
+function drawHandover(ctx, depot, scale, color, detail) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.arc(depot.x * scale, depot.y * scale, 16 * detail, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawNodes(ctx, nodes, scale, theme, selected, visited, detail) {
@@ -51,7 +80,8 @@ function drawBestView(ctx, sim, props, scale, theme, detail) {
   const nodes = entry ? entry.nodes : props.nodes;
   const routeNodes = entry ? entry.nodes : sim?.vrp.nodes;
   const path = entry ? entry.path : sim?.bestPath.path ?? [];
-  if (routeNodes && path.length > 1) drawTrips(ctx, routeNodes, path, scale, Math.max(1.5, 3 * detail));
+  const colonies = entry ? entry.colonies ?? 1 : sim?.pheromones.length ?? 1;
+  if (routeNodes && path.length > 1) drawTrips(ctx, routeNodes, path, scale, Math.max(1.5, 3 * detail), colonies);
   drawNodes(ctx, nodes, scale, theme, entry ? null : props.selected, new Set(), detail);
 }
 
@@ -71,23 +101,37 @@ function drawScene(ctx, sim, props, { width, dpr }) {
 
   const simNodes = sim?.vrp.nodes;
   const ant = sim?.ant;
-  const color = antColor(sim?.iter ?? 0);
+  const colonies = sim?.pheromones.length ?? 1;
+  const color = colonies > 1 ? colonyColor(walkingColony(sim)) : antColor(sim?.iter ?? 0);
 
   if (sim && simNodes.length > 1) {
-    drawPheromones(ctx, simNodes, activePheromones(sim), scale, props.pheromoneStyle);
+    const shown = shownPheromones(sim, props.pheromoneColony);
+    for (const { colony, matrix } of shown) {
+      const overlay = shown.length > 1 ? { tint: colonyColor(colony), highlightedOnly: true } : undefined;
+      drawPheromones(ctx, simNodes, matrix, scale, props.pheromoneStyle, overlay);
+    }
 
     if (props.showBestOverlay && sim.bestPath.path.length > 1) {
       drawPolyline(ctx, sim.bestPath.path.map((i) => simNodes[i]), scale, theme.best, 2.5, [8, 6]);
     }
 
     if (ant && props.showAntTrace) {
-      const walked = ant.state.path.slice(0, -1).map((i) => simNodes[i]);
-      walked.push(antPosition(ant, simNodes));
-      drawPolyline(ctx, walked, scale, color, 1.5);
+      if (colonies > 1) {
+        drawColonyTrace(ctx, ant, simNodes, colonies, scale);
+      } else {
+        const walked = ant.state.path.slice(0, -1).map((i) => simNodes[i]);
+        walked.push(antPosition(ant, simNodes));
+        drawPolyline(ctx, walked, scale, color, 1.5);
+      }
     }
   }
 
   drawNodes(ctx, props.nodes, scale, theme, props.selected, new Set(ant?.state.path), detail);
+
+  // While an ant returns to reload, a ring in the next colony's color marks who takes over at the base.
+  if (ant && colonies > 1 && ant.decision?.kind === 'reload' && simNodes.length > 0) {
+    drawHandover(ctx, simNodes[0], scale, colonyColor(ant.state.colony), detail);
+  }
 
   if (ant && simNodes.length > 1) {
     const position = antPosition(ant, simNodes);
@@ -102,15 +146,17 @@ function drawScene(ctx, sim, props, { width, dpr }) {
 }
 
 export function MapCanvas({
-  simRef, nodes, onNodesChange, selected, onSelect, tool, newDemand, pheromoneStyle, showBestOverlay, showAntTrace,
-  view, bestEntry, interactive = true,
+  simRef, nodes, onNodesChange, selected, onSelect, tool, newDemand, pheromoneStyle, pheromoneColony, showBestOverlay,
+  showAntTrace, view, bestEntry, interactive = true,
 }) {
   const canvasRef = useRef(null);
   const size = useCanvasSize(canvasRef);
   const dragRef = useRef(null);
   const propsRef = useRef(null);
   const dirtyRef = useRef(true);
-  propsRef.current = { nodes, selected, pheromoneStyle, showBestOverlay, showAntTrace, view, bestEntry, interactive, size };
+  propsRef.current = {
+    nodes, selected, pheromoneStyle, pheromoneColony, showBestOverlay, showAntTrace, view, bestEntry, interactive, size,
+  };
 
   useEffect(() => {
     dirtyRef.current = true;

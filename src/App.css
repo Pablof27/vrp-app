@@ -133,6 +133,9 @@ input:disabled { opacity: 0.6; }
 }
 .pheromone-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pheromone-legend .gradient { width: 80px; height: 8px; border-radius: 4px; border: 1px solid var(--panel-border); }
+.colony-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+.colony-chip { display: inline-flex; align-items: center; }
+.colony-tag { white-space: nowrap; }
 
 .minimap-canvas { display: block; width: 100%; aspect-ratio: 10 / 9; border-radius: 8px; border: 1px solid var(--panel-border); }
 .minimap-caption { font-size: 12px; color: var(--muted); margin-top: 6px; }

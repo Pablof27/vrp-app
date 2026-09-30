@@ -28,6 +28,7 @@ An interactive, in-browser visualization of **Ant Colony Optimization (ACO)** so
 - **Interactive map editor** — add, drag and delete customers, move the base and edit each customer's demand.
 - **Step-by-step animation** — one ant at a time walks its tour. Pheromones evaporate after every ant and the best route is reinforced every `m` ants.
 - **Pheromone visualization** — the 20 strongest edges are always highlighted and weaker edges fade into the background, in three styles (light gray, heatmap, heatmap + width).
+- **Multiple colonies** — each vehicle trip is learned by its own colony. The ant, its trace and the best route's trips take the colour of their colony, and a dashed ring at the base shows which colony takes over at each reload. You can show the pheromones of the walking colony, of one chosen colony, or of all colonies at once.
 - **Two views** — switch the main map between the pheromone view and the best route (one color per vehicle trip). The minimap always shows the other view.
 - **Best route history** — browse every improvement found so far, each drawn on the map as it was when it was found.
 - **Live adaptation to map edits** — moving customers, changing demands or capacity does not restart the colony. Pheromones and the current ant are kept and the best route is repaired and re-measured, so its length can go up.
@@ -150,6 +151,7 @@ Ants run **sequentially**: each ant sees the pheromones left after the previous 
 | Vehicle capacity $Q$ | Problem | 20 | Maximum load per vehicle trip. |
 | Demand for new nodes | Problem | 3 | Demand given to customers added by clicking the map. |
 | Customers / demand range | Random map | 20 / 1–8 | Size and demands used by **Generate**. |
+| Colonies | Ant Colony System | 1 | Number of colonies, each with its own pheromones. Trip $k$ of a tour is walked by colony $k \bmod$ colonies. |
 | Global update interval $m$ | Ant Colony System | 10 | Number of completed ants between global updates of the best route. |
 | $\beta$ | Ant Colony System | 2 | Weight of the distance heuristic relative to the pheromone. |
 | $q_0$ | Ant Colony System | 0.9 | Probability of exploiting (greedy choice) instead of exploring. |
@@ -158,7 +160,7 @@ Ants run **sequentially**: each ant sees the pheromones left after the previous 
 | Ant speed | Simulation | 0.6 u/s | Animation speed of the current ant, in map units per second. |
 | Fast mode / tours per frame | Simulation | off / 20 | Run tours without animation, this many per frame. |
 
-$\beta$, $q_0$, $\alpha$ and $m$ can be changed while the colony is running. Capacity, $\tau_0$ and map edits also apply live; **Generate** and **Reset** start from scratch.
+$\beta$, $q_0$, $\alpha$ and $m$ can be changed while the colony is running. Capacity, $\tau_0$, the number of colonies and map edits also apply live (existing colonies keep what they learned; new ones start at $\tau_0$); **Generate** and **Reset** start from scratch.
 
 ## Getting started
 
@@ -207,6 +209,7 @@ The app is deployed to GitHub Pages by the workflow in [.github/workflows/deploy
 
 - **Pheromones / Best path** switches the main map. The read-only minimap on the right always shows the other view.
 - In the pheromone view you can choose the drawing style, hide the current ant's trace and overlay the best route as a dashed line.
+- With more than one colony, **Walking / All / 1…n** chooses whose pheromones are drawn. **All** overlays each colony's top pairs in its colour.
 
 **Best route history**
 

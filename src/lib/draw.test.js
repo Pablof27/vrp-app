@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { drawPheromones, rankPheromonePairs, TOP_PHEROMONE_PAIRS } from './draw.js';
+import { colonyColor, drawPheromones, drawTrips, rankPheromonePairs, TOP_PHEROMONE_PAIRS } from './draw.js';
 
 const nodes = Array.from({ length: 8 }, (_, index) => ({ x: index / 8, y: (index % 3) / 3 }));
 
@@ -73,4 +73,29 @@ test('maps with fewer than 20 pairs highlight every available pair', () => {
   const pairs = rankPheromonePairs(smallNodes.map(() => smallNodes.map(() => 0.01)), smallNodes);
   assert.equal(pairs.length, 3);
   assert.ok(pairs.every((pair) => pair.highlighted));
+});
+
+test('colony overlays draw only the highlighted pairs in the colony color', () => {
+  const context = recordingContext();
+  drawPheromones(context, nodes, matrix(0.01), 500, 'heat', { tint: colonyColor(2), highlightedOnly: true });
+  assert.equal(context.strokes.length, TOP_PHEROMONE_PAIRS);
+  assert.ok(context.strokes.every((stroke) => stroke.color.startsWith('rgba(59,130,246,')));
+});
+
+test('best trips take their colony color when there are several colonies', () => {
+  const colors = [];
+  const context = {
+    ...recordingContext(),
+    lineJoin: '',
+    setLineDash() {},
+    stroke() {
+      colors.push(this.strokeStyle);
+    },
+  };
+  const path = [0, 1, 0, 2, 0, 3, 0];
+  drawTrips(context, nodes, path, 500, 2, 2);
+  assert.deepEqual(colors, [colonyColor(0), colonyColor(1), colonyColor(0)]);
+  colors.length = 0;
+  drawTrips(context, nodes, path, 500, 2);
+  assert.deepEqual(colors, [colonyColor(0), colonyColor(1), colonyColor(2)]);
 });

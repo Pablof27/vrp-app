@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AntColony } from '../../Model/AntColony.js';
-import { advanceAnimated, advanceFast, createSimulation, stepSimulation, updateSimulation } from './useColonySimulation.js';
+import { advanceAnimated, advanceFast, createSimulation, shownPheromones, stepSimulation, updateSimulation, walkingColony } from './useColonySimulation.js';
 
 const nodes = [
   { id: 0, x: 0.1, y: 0.1, demand: 0 },
@@ -114,4 +114,59 @@ test('history keeps each best route with the map it was found on', () => {
   assert.equal(edited.nodes, movedNodes);
   assert.equal(found.nodes[1].x, 0.6);
   assert.ok(edited.length > found.length);
+});
+
+// Base + 3 customers with capacity 1: one trip per customer.
+const tripNodes = [
+  { id: 0, x: 0, y: 0, demand: 0 },
+  { id: 1, x: 0.1, y: 0, demand: 1 },
+  { id: 2, x: 0.2, y: 0, demand: 1 },
+  { id: 3, x: 0.3, y: 0, demand: 1 },
+];
+const tripParams = { ...params, capacity: 1, colonies: 3 };
+
+test('the walking colony changes only when the next trip leaves the base', () => {
+  const sim = createSimulation(tripNodes, tripParams);
+  const seen = [];
+  for (let step = 0; step < 6; step++) {
+    stepSimulation(sim, tripParams);
+    seen.push([sim.ant.decision.kind, walkingColony(sim), sim.ant.state.colony]);
+  }
+  assert.deepEqual(seen, [
+    ['move', 0, 0], ['reload', 0, 1],
+    ['move', 1, 1], ['reload', 1, 2],
+    ['move', 2, 2], ['finish', 2, 2],
+  ]);
+  assert.equal(sim.ant.decision.nextColony, 2);
+});
+
+test('pheromones can be shown for the walking colony, a chosen one or all of them', () => {
+  const sim = createSimulation(tripNodes, tripParams);
+  for (let step = 0; step < 3; step++) stepSimulation(sim, tripParams);
+  assert.deepEqual(shownPheromones(sim, 'active').map((s) => s.colony), [1]);
+  assert.deepEqual(shownPheromones(sim, 2).map((s) => s.colony), [2]);
+  assert.deepEqual(shownPheromones(sim, 'all').map((s) => s.colony), [0, 1, 2]);
+  assert.equal(shownPheromones(sim, 7)[0].colony, 1);
+});
+
+test('changing the number of colonies keeps learned pheromones and reassigns the current trip', () => {
+  const sim = createSimulation(tripNodes, tripParams);
+  advanceFast(sim, tripParams, 2);
+  for (let step = 0; step < 5; step++) stepSimulation(sim, tripParams);
+  const learned = sim.pheromones.slice(0, 2);
+  assert.equal(sim.ant.state.colony, 2);
+
+  const two = { ...tripParams, colonies: 2 };
+  updateSimulation(sim, tripNodes, two);
+  assert.equal(sim.pheromones.length, 2);
+  assert.deepEqual(sim.pheromones, learned);
+  assert.equal(sim.ant.state.colony, 0);
+  assert.equal(sim.ant.decision, null);
+
+  const four = { ...tripParams, colonies: 4 };
+  updateSimulation(sim, tripNodes, four);
+  assert.equal(sim.pheromones.length, 4);
+  assert.ok(sim.pheromones[3].every((row) => row.every((p) => p === sim.tau0)));
+  assert.equal(sim.ant.state.colony, 2);
+  assert.equal(sim.history.at(-1).colonies, 4);
 });

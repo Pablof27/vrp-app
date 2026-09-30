@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AntColony } from '../Model/AntColony.js';
 import { useColonySimulation } from './hooks/useColonySimulation.js';
-import { GRAY_GRADIENT_CSS, HEAT_GRADIENT_CSS, TOP_PHEROMONE_PAIRS, WORLD_HEIGHT, splitTrips } from './lib/draw.js';
+import { GRAY_GRADIENT_CSS, HEAT_GRADIENT_CSS, TOP_PHEROMONE_PAIRS, WORLD_HEIGHT, colonyColor, splitTrips } from './lib/draw.js';
 import { withId } from './lib/nodes.js';
 import { MapCanvas } from './components/MapCanvas.jsx';
 import { ParametersPanel } from './components/ParametersPanel.jsx';
@@ -23,10 +23,12 @@ const DEFAULT_PARAMS = {
   alpha: 0.1,
   tau0: 0.01,
   autoTau0: true,
+  colonies: 1,
   speed: 0.6,
   fastMode: false,
   toursPerFrame: 20,
   pheromoneStyle: 'gray',
+  pheromoneColony: 'active',
   showBestOverlay: false,
   showAntTrace: true,
   mapView: 'pheromones',
@@ -51,6 +53,17 @@ const PHEROMONE_STYLES = [
 
 function randomMap(params) {
   return colony.newMap(params.randomCount + 1, params.capacity, { min: params.demandMin, max: params.demandMax }).nodes.map(withId);
+}
+
+const colonyName = (c) => `Colony ${c + 1}`;
+
+function ColonyChips({ colonies }) {
+  return colonies.map((c) => (
+    <span key={c} className="colony-chip">
+      <i className="colony-dot" style={{ background: colonyColor(c) }} />
+      {c + 1}
+    </span>
+  ));
 }
 
 export function App() {
@@ -90,11 +103,28 @@ export function App() {
     : 'no route yet';
   const topPairs = Math.min(TOP_PHEROMONE_PAIRS, nodes.length * (nodes.length - 1) / 2);
   const minimapView = params.mapView === 'best' ? 'pheromones' : 'best';
+  const colonies = params.colonies;
+  // A colony removed by lowering the count falls back to following the walking colony.
+  const pheromoneColony = Number.isInteger(params.pheromoneColony) && params.pheromoneColony >= colonies
+    ? 'active'
+    : params.pheromoneColony;
+  const shownColonies = snapshot?.pheromoneColonies ?? [0];
+  const pheromoneCaption = colonies === 1
+    ? 'Live pheromones'
+    : pheromoneColony === 'all'
+      ? 'Live pheromones of all colonies'
+      : `Live pheromones of ${colonyName(shownColonies[0])}${pheromoneColony === 'active' ? ' (walking)' : ''}`;
+  const colonyOptions = [
+    { id: 'active', label: 'Walking' },
+    { id: 'all', label: 'All' },
+    ...Array.from({ length: colonies }, (_, c) => ({ id: c, label: String(c + 1), color: colonyColor(c) })),
+  ];
 
   const mapProps = {
     simRef,
     nodes,
     pheromoneStyle: params.pheromoneStyle,
+    pheromoneColony,
     showBestOverlay: params.showBestOverlay,
     showAntTrace: params.showAntTrace,
     bestEntry,
@@ -187,6 +217,23 @@ export function App() {
             </div>
             <div className="toolbar-row options">
               <div className={`options-set${params.mapView === 'pheromones' ? '' : ' inactive'}`}>
+                {colonies > 1 && (
+                  <div className="segmented" role="group" aria-label="Pheromones of colony">
+                    {colonyOptions.map((o) => (
+                      <button
+                        key={o.id}
+                        type="button"
+                        title={Number.isInteger(o.id) ? colonyName(o.id) : undefined}
+                        aria-pressed={pheromoneColony === o.id}
+                        className={pheromoneColony === o.id ? 'active' : ''}
+                        onClick={() => setParam('pheromoneColony', o.id)}
+                      >
+                        {o.color && <i className="colony-dot" style={{ background: o.color }} />}
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="segmented">
                   {PHEROMONE_STYLES.map((s) => (
                     <button
@@ -217,7 +264,11 @@ export function App() {
                 </label>
               </div>
               <div className={`options-set${params.mapView === 'best' ? '' : ' inactive'}`}>
-                <small className="muted">Each color is one vehicle trip · pick earlier routes in the history panel</small>
+                <small className="muted">
+                  {colonies > 1
+                    ? 'Each color is the colony that learns that trip'
+                    : 'Each color is one vehicle trip'} · pick earlier routes in the history panel
+                </small>
               </div>
             </div>
           </div>
@@ -238,12 +289,15 @@ export function App() {
             <small>Click to add a customer · drag to move · right-click to delete · number = demand</small>
             {params.mapView === 'pheromones' ? (
               <div className="pheromone-legend">
+                {colonies > 1 && <ColonyChips colonies={shownColonies} />}
                 <span>Top {topPairs}</span>
                 <span>τ {snapshot && Number.isFinite(snapshot.range.min) ? snapshot.range.min.toExponential(2) : '—'}</span>
-                <span
-                  className="gradient"
-                  style={{ background: params.pheromoneStyle === 'gray' ? GRAY_GRADIENT_CSS : HEAT_GRADIENT_CSS }}
-                />
+                {shownColonies.length === 1 && (
+                  <span
+                    className="gradient"
+                    style={{ background: params.pheromoneStyle === 'gray' ? GRAY_GRADIENT_CSS : HEAT_GRADIENT_CSS }}
+                  />
+                )}
                 <span>{snapshot && Number.isFinite(snapshot.range.max) ? snapshot.range.max.toExponential(2) : '—'}</span>
               </div>
             ) : (
@@ -261,7 +315,7 @@ export function App() {
             <MapCanvas {...mapProps} view={minimapView} selected={null} interactive={false} />
             <div className="minimap-caption">
               {minimapView === 'pheromones'
-                ? <>Live pheromones · top <b>{topPairs}</b> pairs highlighted</>
+                ? <>{pheromoneCaption} · top <b>{topPairs}</b> pairs highlighted</>
                 : <>{bestLabel} · <b>{bestSummary}</b></>}
             </div>
             <BestHistoryNavigator history={history} selected={selectedIndex} onSelect={setSelectedBest} />
@@ -280,6 +334,7 @@ export function App() {
             <ProbabilityBars
               decision={snapshot?.decision}
               activeAnt={snapshot?.activeAnt}
+              colonies={snapshot?.colonies ?? 1}
               fastMode={params.fastMode}
             />
           </section>

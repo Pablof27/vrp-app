@@ -1,3 +1,5 @@
+import { MAX_COLONIES } from '../lib/draw.js';
+
 const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
 
 function Slider({ label, hint, value, min, max, step, onChange, format = (v) => v }) {
@@ -94,6 +96,15 @@ export function ParametersPanel({
       <section>
         <h3>Ant Colony System</h3>
         <Slider
+          label="Colonies"
+          hint="Each colony has its own pheromones and learns one vehicle trip; they take turns at every return to the base."
+          value={params.colonies}
+          min={1}
+          max={MAX_COLONIES}
+          step={1}
+          onChange={(v) => setParam('colonies', v)}
+        />
+        <Slider
           label="Global update interval (m)"
           value={params.m}
           min={1}
@@ -144,7 +155,7 @@ export function ParametersPanel({
           disabled={params.autoTau0}
           onChange={(v) => setParam('tau0', v)}
         />
-        <small className="note">Editing the map, capacity or τ0 adapts the running colony; Generate or Reset starts over.</small>
+        <small className="note">Editing the map, capacity, τ0 or the number of colonies adapts the running colony; Generate or Reset starts over.</small>
       </section>
 
       <section>
