@@ -80,6 +80,8 @@ input:disabled { opacity: 0.6; }
   padding: 4px 14px 12px;
   max-height: calc(100vh - 80px);
   overflow-y: auto;
+  /* Width-dependent content (the minimap) would otherwise toggle the scrollbar on and off every frame. */
+  scrollbar-gutter: stable;
 }
 .panel section { padding: 8px 0; border-bottom: 1px solid var(--panel-border); }
 .panel section:last-child { border-bottom: none; }

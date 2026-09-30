@@ -296,10 +296,6 @@ The tests use the built-in Node.js test runner (`node --test`) and cover:
   - the history keeps each best route together with its map.
 - **Rendering:** top-20 pheromone selection, transparency, stroke width limits and the gray style.
 
-## Known issues
-
-- The browser console can repeatedly report `ResizeObserver loop completed with undelivered notifications` during development. It appears to come from the canvas sizing code and has not been fixed yet.
-
 ## Credits
 
 - Based on **"ACO for VRP"**, a project for the **Multi-Agent Systems** course of the **Master's in Artificial Intelligence**.
