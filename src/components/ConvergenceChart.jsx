@@ -39,10 +39,16 @@ export function ConvergenceChart({ history, iter }) {
         <text key={`x${v}`} x={x(v)} y={H - M.bottom + 14} className="tick" textAnchor="middle">{Math.round(v)}</text>
       ))}
       <text x={(M.left + W - M.right) / 2} y={H - 3} className="axis-label" textAnchor="middle">ant tours</text>
+      {history.filter((h) => h.changed).map((h) => (
+        <line key={`c${h.iter}`} x1={x(h.iter)} x2={x(h.iter)} y1={M.top} y2={H - M.bottom} className="change" />
+      ))}
       <path d={d} className="line" />
+      {history.some((h) => h.changed) && (
+        <text x={W - M.right} y={M.top + 8} className="axis-label change-label" textAnchor="end">┆ map edited</text>
+      )}
       {history.map((h) => (
-        <circle key={h.iter} cx={x(h.iter)} cy={y(h.length)} r={2.5} className="dot">
-          <title>{`tour ${h.iter}: ${h.length.toFixed(4)}`}</title>
+        <circle key={`${h.iter}-${h.changed ? 'c' : 'i'}`} cx={x(h.iter)} cy={y(h.length)} r={2.5} className={h.changed ? 'dot changed' : 'dot'}>
+          <title>{`tour ${h.iter}: ${h.length.toFixed(4)}${h.changed ? ' (map changed)' : ''}`}</title>
         </circle>
       ))}
     </svg>

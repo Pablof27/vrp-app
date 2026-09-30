@@ -36,15 +36,18 @@ function nearestNeighborLength(vrp) {
   return length + vrp.distances[at][0];
 }
 
+function computeTau0(vrp, params) {
+  if (!params.autoTau0) return params.tau0;
+  const lnn = nearestNeighborLength(vrp);
+  return lnn > 0 ? 1 / (vrp.nodes.length * lnn) : 1;
+}
+
 function createSimulation(nodes, params) {
   const vrp = colony.buildVrp(nodes, params.capacity);
-  let tau0 = params.tau0;
-  if (params.autoTau0) {
-    const lnn = nearestNeighborLength(vrp);
-    tau0 = lnn > 0 ? 1 / (nodes.length * lnn) : 1;
-  }
+  const tau0 = computeTau0(vrp, params);
   return {
     vrp,
+    nodeIds: nodes.map((node) => node.id),
     tau0,
     pheromones: colony.resetPheromones({ n: nodes.length, tau0 }),
     bestPath: { path: [], length: Infinity },
@@ -53,6 +56,54 @@ function createSimulation(nodes, params) {
     history: [],
     version: 0,
   };
+}
+
+// Adapts the running colony to an edited map: pheromones and ants are kept, the best route is re-evaluated.
+function updateSimulation(sim, nodes, params) {
+  const newIds = nodes.map((node) => node.id);
+  if (nodes.length === 0 || newIds[0] !== sim.nodeIds[0]) return createSimulation(nodes, params);
+
+  const previousIndex = new Map(sim.nodeIds.map((id, i) => [id, i]));
+  const oldIndexOf = newIds.map((id) => previousIndex.get(id) ?? -1);
+  const newIndexOf = sim.nodeIds.map(() => -1);
+  oldIndexOf.forEach((oi, ni) => {
+    if (oi >= 0) newIndexOf[oi] = ni;
+  });
+  const structural = sim.nodeIds.length !== newIds.length || oldIndexOf.some((oi, ni) => oi !== ni);
+
+  sim.vrp = colony.buildVrp(nodes, params.capacity);
+  sim.nodeIds = newIds;
+  sim.tau0 = computeTau0(sim.vrp, params);
+  if (structural) sim.pheromones = colony.remapPheromones(sim.pheromones, oldIndexOf, sim.tau0);
+
+  if (sim.bestPath.path.length > 0) {
+    const repaired = colony.repairPath(sim.vrp, sim.bestPath.path.map((i) => newIndexOf[i]));
+    sim.bestPath.path = repaired.path;
+    sim.bestPath.length = repaired.length;
+    const point = { iter: sim.iter, length: repaired.length, changed: true };
+    const last = sim.history[sim.history.length - 1];
+    // Coalesce consecutive edits (e.g. dragging) that happen within the same tour count.
+    if (last?.changed && last.iter === sim.iter) sim.history[sim.history.length - 1] = point;
+    else sim.history.push(point);
+  }
+
+  sim.ants.forEach((ant, k) => {
+    const from = newIndexOf[ant.from];
+    const to = newIndexOf[ant.to];
+    if (from < 0 || to < 0 || !colony.adaptAnt(sim.vrp, ant.state, newIndexOf)) {
+      sim.ants[k] = newAnt(sim);
+      return;
+    }
+    const fraction = ant.edgeLength > 0 ? ant.progress / ant.edgeLength : 1;
+    ant.from = from;
+    ant.to = to;
+    ant.edgeLength = sim.vrp.distances[from][to];
+    ant.progress = fraction * ant.edgeLength;
+    if (structural) ant.decision = null;
+  });
+
+  sim.version++;
+  return sim;
 }
 
 function modelParams(sim, params) {
@@ -155,8 +206,10 @@ function describeDecision(sim, decision) {
 
 export function useColonySimulation(nodes, params, trackedAnt, canRun) {
   const simRef = useRef(null);
+  const nodesRef = useRef(nodes);
   const paramsRef = useRef(params);
   const trackedRef = useRef(trackedAnt);
+  nodesRef.current = nodes;
   paramsRef.current = params;
   trackedRef.current = trackedAnt;
 
@@ -191,12 +244,17 @@ export function useColonySimulation(nodes, params, trackedAnt, canRun) {
   }, []);
 
   const reset = useCallback(() => {
-    simRef.current = createSimulation(nodes, paramsRef.current);
+    simRef.current = createSimulation(nodesRef.current, paramsRef.current);
     setError(null);
     publish();
-  }, [nodes, publish]);
+  }, [publish]);
 
-  useEffect(reset, [reset, params.capacity, params.tau0, params.autoTau0]);
+  useEffect(() => {
+    const sim = simRef.current;
+    simRef.current = sim ? updateSimulation(sim, nodes, paramsRef.current) : createSimulation(nodes, paramsRef.current);
+    setError(null);
+    publish();
+  }, [nodes, params.capacity, params.tau0, params.autoTau0, publish]);
 
   useEffect(publish, [trackedAnt, publish]);
 

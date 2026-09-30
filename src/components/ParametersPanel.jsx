@@ -145,7 +145,7 @@ export function ParametersPanel({
           disabled={params.autoTau0}
           onChange={(v) => setParam('tau0', v)}
         />
-        <small className="note">Changing capacity, τ0 or the nodes restarts the colony.</small>
+        <small className="note">Editing the map, capacity or τ0 adapts the running colony; Generate or Reset starts over.</small>
       </section>
 
       <section>

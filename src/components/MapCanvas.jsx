@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import {
   THEMES, WORLD_HEIGHT, antColor, drawDepot, drawPheromones, drawPolyline, nodeRadius, useCanvasSize,
 } from '../lib/draw.js';
+import { withId } from '../lib/nodes.js';
 
 function antPosition(ant, nodes) {
   const a = nodes[ant.from];
@@ -156,7 +157,7 @@ export function MapCanvas({
       dragRef.current = hit;
       e.currentTarget.setPointerCapture(e.pointerId);
     } else {
-      onNodesChange([...nodes, { x: p.x, y: p.y, demand: newDemand }]);
+      onNodesChange([...nodes, withId({ x: p.x, y: p.y, demand: newDemand })]);
       onSelect(nodes.length);
     }
   };

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { AntColony } from '../Model/AntColony.js';
 import { useColonySimulation } from './hooks/useColonySimulation.js';
 import { GRAY_GRADIENT_CSS, HEAT_GRADIENT_CSS, WORLD_HEIGHT, splitTrips } from './lib/draw.js';
+import { withId } from './lib/nodes.js';
 import { MapCanvas } from './components/MapCanvas.jsx';
 import { ParametersPanel } from './components/ParametersPanel.jsx';
 import { BestRouteMinimap } from './components/BestRouteMinimap.jsx';
@@ -42,7 +43,7 @@ const PHEROMONE_STYLES = [
 ];
 
 function randomMap(params) {
-  return colony.newMap(params.randomCount + 1, params.capacity, { min: params.demandMin, max: params.demandMax }).nodes;
+  return colony.newMap(params.randomCount + 1, params.capacity, { min: params.demandMin, max: params.demandMax }).nodes.map(withId);
 }
 
 export function App() {
@@ -111,7 +112,7 @@ export function App() {
             setSelected(null);
           }}
           onClear={() => {
-            setNodes((prev) => [prev[0] ?? { x: 0.5, y: WORLD_HEIGHT / 2, demand: 0 }]);
+            setNodes((prev) => [prev[0] ?? withId({ x: 0.5, y: WORLD_HEIGHT / 2, demand: 0 })]);
             setSelected(null);
           }}
         />

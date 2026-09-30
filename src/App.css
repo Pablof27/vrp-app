@@ -135,6 +135,9 @@ input:disabled { opacity: 0.6; }
 .chart .axis-label { fill: var(--muted); font-size: 10px; }
 .chart .line { fill: none; stroke: var(--accent); stroke-width: 2; }
 .chart .dot { fill: var(--accent); }
+.chart .dot.changed { fill: var(--explore); }
+.chart .change { stroke: var(--explore); stroke-dasharray: 3 3; opacity: 0.6; }
+.chart .change-label { fill: var(--explore); }
 .chart-empty, .muted { color: var(--muted); font-size: 12px; }
 
 .prob-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 6px; }

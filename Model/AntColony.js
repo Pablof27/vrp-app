@@ -105,6 +105,91 @@ export class AntColony {
         return {pheromones, bestPath, improved};
     }
 
+    pathLength(vrp, path) {
+        let length = 0;
+        for (let k = 0; k < path.length - 1; k++) {
+            length += vrp.distances[path[k]][path[k + 1]];
+        }
+        return length;
+    }
+
+    // oldIndexOf[newIndex] is the node's previous index, or -1 for new nodes (which start at tau0).
+    remapPheromones(pheromones, oldIndexOf, tau0) {
+        return oldIndexOf.map((oi) =>
+            oldIndexOf.map((oj) => (oi >= 0 && oj >= 0 ? pheromones[oi][oj] : tau0))
+        );
+    }
+
+    // Makes a route valid for a changed problem: drops removed nodes (-1), inserts missing
+    // customers at their cheapest position and adds base returns where capacity is exceeded.
+    repairPath(vrp, path) {
+        const n = vrp.nodes.length;
+        const seen = new Set();
+        const route = path.filter((i) => {
+            if (i < 0 || seen.has(i)) return i === 0;
+            seen.add(i);
+            return true;
+        });
+        if (route[0] !== 0) route.unshift(0);
+        if (route[route.length - 1] !== 0) route.push(0);
+
+        const d = vrp.distances;
+        for (let c = 1; c < n; c++) {
+            if (seen.has(c)) continue;
+            let bestK = 0;
+            let bestCost = Infinity;
+            for (let k = 0; k < route.length - 1; k++) {
+                const cost = d[route[k]][c] + d[c][route[k + 1]] - d[route[k]][route[k + 1]];
+                if (cost < bestCost) {
+                    bestCost = cost;
+                    bestK = k;
+                }
+            }
+            route.splice(bestK + 1, 0, c);
+        }
+
+        const result = [0];
+        let load = vrp.capacity;
+        for (const i of route.slice(1)) {
+            if (i !== 0 && vrp.nodes[i].demand > load && result[result.length - 1] !== 0) {
+                result.push(0);
+                load = vrp.capacity;
+            }
+            if (i === 0) {
+                if (result[result.length - 1] !== 0) result.push(0);
+                load = vrp.capacity;
+                continue;
+            }
+            result.push(i);
+            load -= vrp.nodes[i].demand;
+        }
+        if (result[result.length - 1] !== 0) result.push(0);
+
+        return {path: result, length: this.pathLength(vrp, result)};
+    }
+
+    // Adapts an in-progress ant to a changed problem. newIndexOf[oldIndex] is -1 for removed nodes.
+    // Returns false when its partial tour is no longer feasible.
+    adaptAnt(vrp, ant, newIndexOf) {
+        const path = ant.path.map((i) => newIndexOf[i]).filter((i) => i >= 0);
+        let load = vrp.capacity;
+        for (const i of path) {
+            if (i === 0) {
+                load = vrp.capacity;
+            } else {
+                load -= vrp.nodes[i].demand;
+                if (load < 0) return false;
+            }
+        }
+        const visited = new Set(path);
+        ant.path = path;
+        ant.capacity = load;
+        ant.distance = this.pathLength(vrp, path);
+        ant.nonVisited = vrp.nodes.map((node, i) => i).filter((i) => i !== 0 && !visited.has(i));
+        if (ant.nonVisited.length > 0) ant.done = false;
+        return true;
+    }
+
     buildVrp(nodes, capacity) {
         const distances = nodes.map((node) =>
             nodes.map((other) => Math.sqrt((node.x - other.x)**2 + (node.y - other.y)**2))
