@@ -1,9 +1,12 @@
 // Avoids 1/0 when two nodes share the same position.
 const MIN_DISTANCE = 1e-9;
 
+// A tour is built by several colonies taking turns: each vehicle trip is walked by an ant of
+// colony (trip index % colonies), guided only by that colony's pheromone matrix.
+// `pheromones` is therefore always an array with one n×n matrix per colony.
 export class AntColony {
 
-    // Runs one complete ant tour and applies the pheromone updates.
+    // Runs one complete tour (all customers served) and applies the pheromone updates.
     advance(vrp, params, pheromones, bestPath, iter) {
         const ant = this.createAnt(vrp);
         while (!ant.done) {
@@ -18,6 +21,8 @@ export class AntColony {
             // The base (node 0) is not a customer, so it is never a candidate.
             nonVisited: vrp.nodes.map((node, i) => i).filter((i) => i !== 0),
             path: [0],
+            // Colony whose ant is walking the current trip; every tour starts with the first colony.
+            colony: 0,
             capacity: vrp.capacity,
             distance: 0,
             done: false,
@@ -26,9 +31,20 @@ export class AntColony {
 
     candidateScores(vrp, params, pheromones, ant) {
         const from = ant.path[ant.path.length - 1];
+        const tau = pheromones[ant.colony];
         return ant.nonVisited.map((j) =>
-            pheromones[from][j] * (1 / Math.max(vrp.distances[from][j], MIN_DISTANCE)) ** params.beta
+            tau[from][j] * (1 / Math.max(vrp.distances[from][j], MIN_DISTANCE)) ** params.beta
         );
+    }
+
+    // Colony that walked each arc path[k] -> path[k + 1]: it changes every time a trip ends at the base.
+    arcColonies(path, colonies) {
+        let trip = 0;
+        return path.slice(1).map((node) => {
+            const colony = trip % colonies;
+            if (node === 0) trip++;
+            return colony;
+        });
     }
 
     // Probability of each candidate being selected: q0 on the argmax (exploitation) + (1-q0) roulette (exploration).
@@ -42,8 +58,10 @@ export class AntColony {
     }
 
     // Moves the ant one arc. Mutates `ant` and returns a description of the decision.
+    // On 'reload' the trip ends and ant.colony hands over to the next colony (circularly).
     step(vrp, params, pheromones, ant, bestLength = Infinity) {
         const from = ant.path[ant.path.length - 1];
+        const colony = ant.colony;
 
         if (ant.nonVisited.length === 0 || ant.distance > bestLength) {
             const kind = ant.nonVisited.length === 0 ? 'finish' : 'abort';
@@ -52,7 +70,7 @@ export class AntColony {
                 ant.path.push(0);
             }
             ant.done = true;
-            return {kind, from, next: 0, chosen: 0, candidates: [], scores: [], exploited: false};
+            return {kind, from, next: 0, chosen: 0, candidates: [], scores: [], exploited: false, colony};
         }
 
         const scores = this.candidateScores(vrp, params, pheromones, ant);
@@ -78,6 +96,7 @@ export class AntColony {
             next = 0;
             kind = 'reload';
             ant.capacity = vrp.capacity;
+            ant.colony = (colony + 1) % params.colonies;
         } else {
             ant.capacity -= vrp.nodes[chosen].demand;
             ant.nonVisited.splice(idx, 1);
@@ -86,7 +105,7 @@ export class AntColony {
         ant.distance += vrp.distances[from][next];
         ant.path.push(next);
 
-        return {kind, from, next, chosen, candidates, scores, exploited};
+        return {kind, from, next, chosen, candidates, scores, exploited, colony};
     }
 
     finishAnt(ant, params, pheromones, bestPath, iter) {
@@ -115,9 +134,9 @@ export class AntColony {
 
     // oldIndexOf[newIndex] is the node's previous index, or -1 for new nodes (which start at tau0).
     remapPheromones(pheromones, oldIndexOf, tau0) {
-        return oldIndexOf.map((oi) =>
-            oldIndexOf.map((oj) => (oi >= 0 && oj >= 0 ? pheromones[oi][oj] : tau0))
-        );
+        return pheromones.map((tau) => oldIndexOf.map((oi) =>
+            oldIndexOf.map((oj) => (oi >= 0 && oj >= 0 ? tau[oi][oj] : tau0))
+        ));
     }
 
     // Makes a route valid for a changed problem: drops removed nodes (-1), inserts missing
@@ -203,15 +222,9 @@ export class AntColony {
     }
 
     resetPheromones(params) {
-        let pheromones = [];
-        for (let i = 0; i < params.n; i++) {
-            pheromones.push([]);
-            for (let j = 0; j < params.n; j++) {
-                pheromones[i].push(params.tau0)
-            }
-        }
-
-        return pheromones;
+        return Array.from({length: params.colonies}, () =>
+            Array.from({length: params.n}, () => new Array(params.n).fill(params.tau0))
+        );
     }
 
     rouletteWheel(probabilities) {
@@ -236,25 +249,25 @@ export class AntColony {
       return nodes;
     }
 
+    // Each colony reinforces only the trips it walked in the best tour.
     globalUpdate(pheromones, bestPath, bestPathLength, params) {
+        const colonies = this.arcColonies(bestPath, params.colonies);
+        const deposit = params.alpha / bestPathLength;
 
-        for (let i = 0; i < bestPath.length - 1; i++) {
-            pheromones[bestPath[i]][bestPath[i+1]] = (1 - params.alpha) * pheromones[bestPath[i]][bestPath[i+1]] + params.alpha/bestPathLength;
-            pheromones[bestPath[i+1]][bestPath[i]] = (1 - params.alpha) * pheromones[bestPath[i+1]][bestPath[i]] + params.alpha/bestPathLength;
+        for (let k = 0; k < bestPath.length - 1; k++) {
+            const tau = pheromones[colonies[k]];
+            const i = bestPath[k];
+            const j = bestPath[k + 1];
+            tau[i][j] = (1 - params.alpha) * tau[i][j] + deposit;
+            tau[j][i] = (1 - params.alpha) * tau[j][i] + deposit;
         }
 
         return pheromones;
     }
 
     evaporatePheromones(pheromones, params) {
-        let newPheromones =  pheromones.map(function(row) {
-            return row.map(function(p) {
-                // console.log("before: " + p)
-                // console.log("after: " + Number((1-params.alpha) * p + params.alpha * params.tau0))
-                return (1-params.alpha) * p + params.alpha * params.tau0;
-            })
-        });
-
-        return newPheromones;
+        return pheromones.map((tau) =>
+            tau.map((row) => row.map((p) => (1 - params.alpha) * p + params.alpha * params.tau0))
+        );
     }
 }

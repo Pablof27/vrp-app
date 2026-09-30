@@ -253,9 +253,9 @@ import { AntColony } from './Model/AntColony.js';
 
 const colony = new AntColony();
 const vrp = colony.newMap(21, 20, { min: 1, max: 8 }); // base + 20 customers, capacity 20
-const params = { n: vrp.nodes.length, m: 10, beta: 2, q0: 0.9, alpha: 0.1, tau0: 0.01 };
+const params = { n: vrp.nodes.length, m: 10, beta: 2, q0: 0.9, alpha: 0.1, tau0: 0.01, colonies: 3 };
 
-let pheromones = colony.resetPheromones(params);
+let pheromones = colony.resetPheromones(params); // one n×n matrix per colony
 const bestPath = { path: [], length: Infinity };
 
 for (let iter = 0; iter < 2000; iter++) {
@@ -265,10 +265,13 @@ for (let iter = 0; iter < 2000; iter++) {
 console.log(bestPath.length, bestPath.path); // e.g. [0, 17, 15, 2, 0, 9, 6, 0, ...]
 ```
 
+**Multiple colonies.** With `colonies > 1`, each vehicle trip is walked by an ant from a different colony, and each colony has its own pheromone matrix. Trip $k$ of a tour belongs to colony $k \bmod$ `colonies`, so every tour starts with the first colony and the next colony takes over each time an ant returns to the base. Customers served by earlier trips are skipped. All matrices evaporate after every tour. Every $m$ tours, each colony reinforces only the trips it walked in the best tour. `colonies: 1` gives the single-colony behavior.
+
 | Method | Purpose |
 | --- | --- |
 | `advance(vrp, params, pheromones, bestPath, iter)` | Run one complete ant tour and apply the pheromone updates. |
-| `createAnt(vrp)` / `step(...)` / `finishAnt(...)` | Build a tour one arc at a time (used by the animation). |
+| `createAnt(vrp)` / `step(...)` / `finishAnt(...)` | Build a tour one arc at a time (used by the animation). `ant.colony` and the step's `colony` show which colony is moving. |
+| `arcColonies(path, colonies)` | Colony that walked each arc of a tour. |
 | `candidateScores(...)` / `selectionProbabilities(scores, q0)` | Scores and selection probabilities of the next customer. |
 | `newMap(n, capacity, demand)` / `buildVrp(nodes, capacity)` | Create a random instance or build one from nodes. |
 | `resetPheromones(params)` / `evaporatePheromones(...)` / `globalUpdate(...)` | Pheromone initialization and updates. |

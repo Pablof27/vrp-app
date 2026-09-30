@@ -49,7 +49,7 @@ export function createSimulation(nodes, params) {
     vrp,
     nodeIds: nodes.map((node) => node.id),
     tau0,
-    pheromones: colony.resetPheromones({ n: nodes.length, tau0 }),
+    pheromones: colony.resetPheromones({ n: nodes.length, tau0, colonies: params.colonies ?? 1 }),
     bestPath: { path: [], length: Infinity },
     iter: 0,
     globalUpdates: 0,
@@ -115,6 +115,8 @@ function modelParams(sim, params) {
     q0: params.q0,
     alpha: params.alpha,
     tau0: sim.tau0,
+    // Tied to the allocated matrices so a changed setting only applies after a reset.
+    colonies: sim.pheromones.length,
   };
 }
 
@@ -211,6 +213,10 @@ function describeDecision(sim, decision) {
   };
 }
 
+export function activePheromones(sim) {
+  return sim.pheromones[sim.ant?.state.colony ?? 0];
+}
+
 export function useColonySimulation(nodes, params, canRun) {
   const simRef = useRef(null);
   const nodesRef = useRef(nodes);
@@ -234,7 +240,7 @@ export function useColonySimulation(nodes, params, canRun) {
       history: sim.history.slice(),
       nodes: sim.vrp.nodes,
       tau0: sim.tau0,
-      range: pheromoneRange(sim.pheromones),
+      range: pheromoneRange(activePheromones(sim)),
       decision: describeDecision(sim, sim.ant?.decision),
     });
   }, []);

@@ -3,6 +3,7 @@ import {
   THEMES, WORLD_HEIGHT, antColor, drawDepot, drawPheromones, drawPolyline, drawTrips, nodeRadius, useCanvasSize,
 } from '../lib/draw.js';
 import { withId } from '../lib/nodes.js';
+import { activePheromones } from '../hooks/useColonySimulation.js';
 
 function antPosition(ant, nodes) {
   const a = nodes[ant.from];
@@ -73,7 +74,7 @@ function drawScene(ctx, sim, props, { width, dpr }) {
   const color = antColor(sim?.iter ?? 0);
 
   if (sim && simNodes.length > 1) {
-    drawPheromones(ctx, simNodes, sim.pheromones, scale, props.pheromoneStyle);
+    drawPheromones(ctx, simNodes, activePheromones(sim), scale, props.pheromoneStyle);
 
     if (props.showBestOverlay && sim.bestPath.path.length > 1) {
       drawPolyline(ctx, sim.bestPath.path.map((i) => simNodes[i]), scale, theme.best, 2.5, [8, 6]);
