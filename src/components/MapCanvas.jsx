@@ -12,7 +12,7 @@ function antPosition(ant, nodes) {
 }
 
 function drawScene(ctx, sim, props, { width, dpr }) {
-  const theme = props.pheromoneStyle === 'gray' ? THEMES.light : THEMES.dark;
+  const theme = THEMES.dark;
   const scale = width;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = theme.background;

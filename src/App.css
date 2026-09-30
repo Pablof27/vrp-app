@@ -118,13 +118,14 @@ input:disabled { opacity: 0.6; }
 .map-footer {
   width: min(100%, calc((100vh - 190px) / 0.9));
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   color: var(--muted);
   gap: 12px;
 }
-.pheromone-legend { display: flex; align-items: center; gap: 6px; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pheromone-legend .gradient { width: 120px; height: 8px; border-radius: 4px; border: 1px solid var(--panel-border); }
+.pheromone-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pheromone-legend .gradient { width: 80px; height: 8px; border-radius: 4px; border: 1px solid var(--panel-border); }
 
 .minimap-canvas { display: block; width: 100%; aspect-ratio: 10 / 9; border-radius: 8px; border: 1px solid var(--panel-border); }
 .minimap-caption { font-size: 12px; color: var(--muted); margin-top: 6px; }

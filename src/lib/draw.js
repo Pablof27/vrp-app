@@ -8,8 +8,12 @@ const INFERNO = [
   [227, 89, 51], [249, 140, 10], [249, 201, 50], [252, 255, 164],
 ];
 
-export const HEAT_GRADIENT_CSS = `linear-gradient(to right, ${INFERNO.map((c) => `rgb(${c.join(',')})`).join(', ')})`;
-export const GRAY_GRADIENT_CSS = 'linear-gradient(to right, rgb(225,225,225), rgb(20,20,20))';
+export const HEAT_GRADIENT_CSS = `linear-gradient(to right, ${INFERNO.map((_, index) => {
+  const strength = index / (INFERNO.length - 1);
+  return `rgba(${heatRgb(0.55 + 0.45 * strength).join(',')},${0.4 + 0.5 * strength})`;
+}).join(', ')})`;
+export const GRAY_GRADIENT_CSS = 'linear-gradient(to right, rgba(220,220,220,0.4), rgba(220,220,220,0.9))';
+export const TOP_PHEROMONE_PAIRS = 20;
 
 export const TRIP_COLORS = ['#f97316', '#22c55e', '#3b82f6', '#e11d48', '#a855f7', '#eab308', '#14b8a6', '#ec4899'];
 
@@ -68,39 +72,48 @@ export function pheromoneRange(pheromones) {
   return { min, max };
 }
 
-export function drawPheromones(ctx, nodes, pheromones, scale, style) {
-  const n = nodes.length;
-  if (n < 2 || pheromones.length !== n) return;
-  const { min, max } = pheromoneRange(pheromones);
-  const span = max - min;
-  if (!(span > 0)) return;
-
+export function rankPheromonePairs(pheromones, nodes) {
   const edges = [];
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const t = ((pheromones[i][j] + pheromones[j][i]) / 2 - min) / span;
-      if (t > 0.01) edges.push([i, j, t]);
+  for (let from = 0; from < pheromones.length; from++) {
+    for (let to = from + 1; to < pheromones.length; to++) {
+      edges.push({
+        from,
+        to,
+        value: (pheromones[from][to] + pheromones[to][from]) / 2,
+        distance: Math.hypot(nodes[from].x - nodes[to].x, nodes[from].y - nodes[to].y),
+      });
     }
   }
-  // Strong edges last so they stay on top.
-  edges.sort((a, b) => a[2] - b[2]);
+  edges.sort((first, second) => second.value - first.value || first.distance - second.distance);
+  const min = edges.at(-1)?.value ?? 0;
+  const span = (edges[0]?.value ?? min) - min;
+  return edges.map((edge, rank) => ({
+    ...edge,
+    strength: span > 0 ? Math.sqrt((edge.value - min) / span) : 0,
+    highlighted: rank < TOP_PHEROMONE_PAIRS,
+  }));
+}
 
+export function drawPheromones(ctx, nodes, pheromones, scale, style) {
+  if (nodes.length < 2 || pheromones.length !== nodes.length) return;
+  const edges = rankPheromonePairs(pheromones, nodes);
+  const contextOpacity = Math.min(0.12, 2.4 / nodes.length);
+  ctx.save();
   ctx.lineCap = 'round';
-  for (const [i, j, t] of edges) {
-    if (style === 'gray') {
-      const l = Math.round(225 - 205 * t);
-      ctx.strokeStyle = `rgb(${l},${l},${l})`;
-      ctx.lineWidth = 0.5 + 7 * t;
-    } else {
-      const [r, g, b] = heatRgb(t);
-      ctx.strokeStyle = `rgba(${r},${g},${b},${0.25 + 0.75 * t})`;
-      ctx.lineWidth = style === 'heat-width' ? 0.5 + 7 * t : 2;
-    }
+  for (let index = edges.length - 1; index >= 0; index--) {
+    const { from, to, strength, highlighted } = edges[index];
+    const opacity = highlighted ? 0.4 + 0.5 * strength : contextOpacity + 0.2 * strength;
+    const color = style === 'gray' ? [220, 220, 220] : heatRgb(0.55 + 0.45 * strength);
+    ctx.strokeStyle = `rgba(${color.join(',')},${opacity})`;
+    ctx.lineWidth = style === 'heat'
+      ? (highlighted ? 1.2 : 0.7)
+      : (highlighted ? 0.9 + 1.3 * strength : 0.65 + 0.45 * strength);
     ctx.beginPath();
-    ctx.moveTo(nodes[i].x * scale, nodes[i].y * scale);
-    ctx.lineTo(nodes[j].x * scale, nodes[j].y * scale);
+    ctx.moveTo(nodes[from].x * scale, nodes[from].y * scale);
+    ctx.lineTo(nodes[to].x * scale, nodes[to].y * scale);
     ctx.stroke();
   }
+  ctx.restore();
 }
 
 export function drawPolyline(ctx, points, scale, color, width, dash = []) {

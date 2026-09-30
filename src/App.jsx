@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AntColony } from '../Model/AntColony.js';
 import { useColonySimulation } from './hooks/useColonySimulation.js';
-import { GRAY_GRADIENT_CSS, HEAT_GRADIENT_CSS, WORLD_HEIGHT, splitTrips } from './lib/draw.js';
+import { GRAY_GRADIENT_CSS, HEAT_GRADIENT_CSS, TOP_PHEROMONE_PAIRS, WORLD_HEIGHT, splitTrips } from './lib/draw.js';
 import { withId } from './lib/nodes.js';
 import { MapCanvas } from './components/MapCanvas.jsx';
 import { ParametersPanel } from './components/ParametersPanel.jsx';
@@ -26,7 +26,7 @@ const DEFAULT_PARAMS = {
   speed: 0.6,
   fastMode: false,
   toursPerFrame: 20,
-  pheromoneStyle: 'heat',
+  pheromoneStyle: 'gray',
   showBestOverlay: false,
   showAntTrace: true,
 };
@@ -38,7 +38,7 @@ const TOOLS = [
 ];
 
 const PHEROMONE_STYLES = [
-  { id: 'gray', label: 'Grayscale + width' },
+  { id: 'gray', label: 'Light gray' },
   { id: 'heat', label: 'Heatmap' },
   { id: 'heat-width', label: 'Heatmap + width' },
 ];
@@ -173,6 +173,7 @@ export function App() {
           <div className="map-footer">
             <small>Click to add a customer · drag to move · right-click to delete · number = demand</small>
             <div className="pheromone-legend">
+              <span>Top {Math.min(TOP_PHEROMONE_PAIRS, nodes.length * (nodes.length - 1) / 2)}</span>
               <span>τ {snapshot && Number.isFinite(snapshot.range.min) ? snapshot.range.min.toExponential(2) : '—'}</span>
               <span
                 className="gradient"
