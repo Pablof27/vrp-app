@@ -94,15 +94,22 @@ input:disabled { opacity: 0.6; }
 .row .field { flex: 1; }
 .row input[type='number'] { width: 56px; }
 
-.map-area { display: flex; flex-direction: column; gap: 8px; align-items: center; min-width: 0; }
-.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+.map-area { --map-width: min(100%, calc((100vh - 190px) / 0.9)); display: flex; flex-direction: column; gap: 8px; align-items: center; min-width: 0; }
+.toolbar { width: var(--map-width); display: flex; flex-direction: column; gap: 6px; }
+.toolbar-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.toolbar-row.primary { justify-content: space-between; }
+.toolbar-row.options { display: grid; min-height: 31px; }
+.options-set { grid-area: 1 / 1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+/* Both sets share one cell so the row keeps the same height in either view. */
+.options-set.inactive { visibility: hidden; }
+.options-set .check { margin: 0; }
 .segmented { display: inline-flex; }
 .segmented button { border-radius: 0; margin-left: -1px; }
 .segmented button:first-child { border-radius: 6px 0 0 6px; }
 .segmented button:last-child { border-radius: 0 6px 6px 0; }
 .segmented button.active { background: #3a4668; border-color: #56648c; }
 
-.map-wrap { width: min(100%, calc((100vh - 190px) / 0.9)); }
+.map-wrap { width: var(--map-width); }
 .map-canvas {
   display: block;
   width: 100%;
@@ -116,7 +123,7 @@ input:disabled { opacity: 0.6; }
 .map-canvas.tool-base { cursor: cell; }
 
 .map-footer {
-  width: min(100%, calc((100vh - 190px) / 0.9));
+  width: var(--map-width);
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;

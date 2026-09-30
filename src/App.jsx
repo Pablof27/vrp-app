@@ -5,7 +5,6 @@ import { GRAY_GRADIENT_CSS, HEAT_GRADIENT_CSS, TOP_PHEROMONE_PAIRS, WORLD_HEIGHT
 import { withId } from './lib/nodes.js';
 import { MapCanvas } from './components/MapCanvas.jsx';
 import { ParametersPanel } from './components/ParametersPanel.jsx';
-import { BestRouteMinimap } from './components/BestRouteMinimap.jsx';
 import { ConvergenceChart } from './components/ConvergenceChart.jsx';
 import { ProbabilityBars } from './components/ProbabilityBars.jsx';
 import { BestHistoryNavigator } from './components/BestHistoryNavigator.jsx';
@@ -85,10 +84,20 @@ export function App() {
     length: snapshot?.bestLength ?? Infinity,
   };
   const shownTrips = splitTrips(shownBest.path).length;
+  const bestLabel = bestEntry ? `Best ${selectedIndex + 1} of ${history.length} · tour ${bestEntry.iter}` : 'Latest best';
+  const bestSummary = Number.isFinite(shownBest.length)
+    ? `${shownBest.length.toFixed(3)} · ${shownTrips} vehicle${shownTrips === 1 ? '' : 's'}`
+    : 'no route yet';
+  const topPairs = Math.min(TOP_PHEROMONE_PAIRS, nodes.length * (nodes.length - 1) / 2);
+  const minimapView = params.mapView === 'best' ? 'pheromones' : 'best';
 
-  const selectBest = (index) => {
-    setSelectedBest(index);
-    if (index !== null) setParam('mapView', 'best');
+  const mapProps = {
+    simRef,
+    nodes,
+    pheromoneStyle: params.pheromoneStyle,
+    showBestOverlay: params.showBestOverlay,
+    showAntTrace: params.showAntTrace,
+    bestEntry,
   };
 
   return (
@@ -154,28 +163,30 @@ export function App() {
 
         <section className="map-area">
           <div className="toolbar">
-            <div className="segmented" role="group" aria-label="Map view">
-              {MAP_VIEWS.map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  aria-pressed={params.mapView === v.id}
-                  className={params.mapView === v.id ? 'active' : ''}
-                  onClick={() => setParam('mapView', v.id)}
-                >
-                  {v.label}
-                </button>
-              ))}
+            <div className="toolbar-row primary">
+              <div className="segmented" role="group" aria-label="Map view">
+                {MAP_VIEWS.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    aria-pressed={params.mapView === v.id}
+                    className={params.mapView === v.id ? 'active' : ''}
+                    onClick={() => setParam('mapView', v.id)}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+              <div className="segmented">
+                {TOOLS.map((t) => (
+                  <button key={t.id} type="button" className={tool === t.id ? 'active' : ''} onClick={() => setTool(t.id)}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="segmented">
-              {TOOLS.map((t) => (
-                <button key={t.id} type="button" className={tool === t.id ? 'active' : ''} onClick={() => setTool(t.id)}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            {params.mapView === 'pheromones' && (
-              <>
+            <div className="toolbar-row options">
+              <div className={`options-set${params.mapView === 'pheromones' ? '' : ' inactive'}`}>
                 <div className="segmented">
                   {PHEROMONE_STYLES.map((s) => (
                     <button
@@ -204,24 +215,22 @@ export function App() {
                   />
                   Overlay best route
                 </label>
-              </>
-            )}
+              </div>
+              <div className={`options-set${params.mapView === 'best' ? '' : ' inactive'}`}>
+                <small className="muted">Each color is one vehicle trip · pick earlier routes in the history panel</small>
+              </div>
+            </div>
           </div>
 
           <div className="map-wrap">
             <MapCanvas
-              simRef={simRef}
-              nodes={nodes}
+              {...mapProps}
               onNodesChange={editNodes}
               selected={selected}
               onSelect={setSelected}
               tool={tool}
               newDemand={params.newDemand}
-              pheromoneStyle={params.pheromoneStyle}
-              showBestOverlay={params.showBestOverlay}
-              showAntTrace={params.showAntTrace}
               view={params.mapView}
-              bestEntry={bestEntry}
             />
           </div>
 
@@ -229,7 +238,7 @@ export function App() {
             <small>Click to add a customer · drag to move · right-click to delete · number = demand</small>
             {params.mapView === 'pheromones' ? (
               <div className="pheromone-legend">
-                <span>Top {Math.min(TOP_PHEROMONE_PAIRS, nodes.length * (nodes.length - 1) / 2)}</span>
+                <span>Top {topPairs}</span>
                 <span>τ {snapshot && Number.isFinite(snapshot.range.min) ? snapshot.range.min.toExponential(2) : '—'}</span>
                 <span
                   className="gradient"
@@ -239,14 +248,8 @@ export function App() {
               </div>
             ) : (
               <div className="pheromone-legend">
-                <span>
-                  {bestEntry ? `Best ${selectedIndex + 1} of ${history.length} · tour ${bestEntry.iter}` : 'Latest best'}
-                </span>
-                <span>
-                  {Number.isFinite(shownBest.length)
-                    ? `${shownBest.length.toFixed(3)} · ${shownTrips} vehicle${shownTrips === 1 ? '' : 's'}`
-                    : 'no route yet'}
-                </span>
+                <span>{bestLabel}</span>
+                <span>{bestSummary}</span>
               </div>
             )}
           </div>
@@ -254,9 +257,14 @@ export function App() {
 
         <aside className="panel side">
           <section>
-            <h3>{bestEntry ? 'Previous best route' : 'Best route'}</h3>
-            <BestRouteMinimap nodes={shownBest.nodes} bestPath={shownBest.path} bestLength={shownBest.length} />
-            <BestHistoryNavigator history={history} selected={selectedIndex} onSelect={selectBest} />
+            <h3>{minimapView === 'pheromones' ? 'Pheromones' : bestEntry ? 'Previous best route' : 'Best route'}</h3>
+            <MapCanvas {...mapProps} view={minimapView} selected={null} interactive={false} />
+            <div className="minimap-caption">
+              {minimapView === 'pheromones'
+                ? <>Live pheromones · top <b>{topPairs}</b> pairs highlighted</>
+                : <>{bestLabel} · <b>{bestSummary}</b></>}
+            </div>
+            <BestHistoryNavigator history={history} selected={selectedIndex} onSelect={setSelectedBest} />
           </section>
           <section>
             <h3>Best length evolution</h3>
@@ -264,7 +272,7 @@ export function App() {
               history={history}
               iter={snapshot?.iter ?? 0}
               selected={selectedIndex}
-              onSelect={selectBest}
+              onSelect={setSelectedBest}
             />
           </section>
           <section>

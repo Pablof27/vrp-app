@@ -11,7 +11,7 @@ function antPosition(ant, nodes) {
   return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
 }
 
-function drawNodes(ctx, nodes, scale, theme, selected, visited) {
+function drawNodes(ctx, nodes, scale, theme, selected, visited, detail) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   nodes.forEach((node, i) => {
@@ -19,21 +19,23 @@ function drawNodes(ctx, nodes, scale, theme, selected, visited) {
     const x = node.x * scale;
     const y = node.y * scale;
     ctx.beginPath();
-    ctx.arc(x, y, nodeRadius(node.demand), 0, Math.PI * 2);
+    ctx.arc(x, y, nodeRadius(node.demand) * detail, 0, Math.PI * 2);
     ctx.fillStyle = theme.node;
     ctx.globalAlpha = visited.has(i) ? 0.45 : 1;
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.lineWidth = i === selected ? 3 : 1.5;
+    ctx.lineWidth = i === selected ? 3 : 1.5 * detail;
     ctx.strokeStyle = i === selected ? theme.selected : theme.nodeStroke;
     ctx.stroke();
-    ctx.fillStyle = theme.text;
-    ctx.font = '600 10px system-ui, sans-serif';
-    ctx.fillText(String(node.demand), x, y + 0.5);
+    if (detail >= 0.7) {
+      ctx.fillStyle = theme.text;
+      ctx.font = '600 10px system-ui, sans-serif';
+      ctx.fillText(String(node.demand), x, y + 0.5);
+    }
   });
 
   if (nodes.length > 0) {
-    drawDepot(ctx, nodes[0], scale, 18, theme);
+    drawDepot(ctx, nodes[0], scale, 18 * detail, theme);
     if (selected === 0) {
       ctx.strokeStyle = theme.selected;
       ctx.lineWidth = 3;
@@ -43,24 +45,26 @@ function drawNodes(ctx, nodes, scale, theme, selected, visited) {
 }
 
 // Historical entries are drawn on the map they were found on, which may differ from the current one.
-function drawBestView(ctx, sim, props, scale, theme) {
+function drawBestView(ctx, sim, props, scale, theme, detail) {
   const entry = props.bestEntry;
   const nodes = entry ? entry.nodes : props.nodes;
   const routeNodes = entry ? entry.nodes : sim?.vrp.nodes;
   const path = entry ? entry.path : sim?.bestPath.path ?? [];
-  if (routeNodes && path.length > 1) drawTrips(ctx, routeNodes, path, scale, 3);
-  drawNodes(ctx, nodes, scale, theme, entry ? null : props.selected, new Set());
+  if (routeNodes && path.length > 1) drawTrips(ctx, routeNodes, path, scale, Math.max(1.5, 3 * detail));
+  drawNodes(ctx, nodes, scale, theme, entry ? null : props.selected, new Set(), detail);
 }
 
 function drawScene(ctx, sim, props, { width, dpr }) {
   const theme = THEMES.dark;
   const scale = width;
+  // The read-only minimap shrinks nodes and markers to stay legible at small sizes.
+  const detail = props.interactive ? 1 : Math.min(1, Math.max(0.4, width / 700));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, width, width * WORLD_HEIGHT);
 
   if (props.view === 'best') {
-    drawBestView(ctx, sim, props, scale, theme);
+    drawBestView(ctx, sim, props, scale, theme, detail);
     return;
   }
 
@@ -82,12 +86,12 @@ function drawScene(ctx, sim, props, { width, dpr }) {
     }
   }
 
-  drawNodes(ctx, props.nodes, scale, theme, props.selected, new Set(ant?.state.path));
+  drawNodes(ctx, props.nodes, scale, theme, props.selected, new Set(ant?.state.path), detail);
 
   if (ant && simNodes.length > 1) {
     const position = antPosition(ant, simNodes);
     ctx.beginPath();
-    ctx.arc(position.x * scale, position.y * scale, 5.5, 0, Math.PI * 2);
+    ctx.arc(position.x * scale, position.y * scale, Math.max(3, 5.5 * detail), 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
     ctx.lineWidth = 2;
@@ -98,14 +102,14 @@ function drawScene(ctx, sim, props, { width, dpr }) {
 
 export function MapCanvas({
   simRef, nodes, onNodesChange, selected, onSelect, tool, newDemand, pheromoneStyle, showBestOverlay, showAntTrace,
-  view, bestEntry,
+  view, bestEntry, interactive = true,
 }) {
   const canvasRef = useRef(null);
   const size = useCanvasSize(canvasRef);
   const dragRef = useRef(null);
   const propsRef = useRef(null);
   const dirtyRef = useRef(true);
-  propsRef.current = { nodes, selected, pheromoneStyle, showBestOverlay, showAntTrace, view, bestEntry, size };
+  propsRef.current = { nodes, selected, pheromoneStyle, showBestOverlay, showAntTrace, view, bestEntry, interactive, size };
 
   useEffect(() => {
     dirtyRef.current = true;
@@ -192,6 +196,8 @@ export function MapCanvas({
     const hit = hitTest(toWorld(e));
     if (hit > 0) deleteNode(hit);
   };
+
+  if (!interactive) return <canvas ref={canvasRef} className="minimap-canvas" />;
 
   return (
     <canvas
