@@ -6,7 +6,7 @@ function ticks(min, max, count) {
   return Array.from({ length: count }, (_, k) => min + ((max - min) * k) / (count - 1));
 }
 
-export function ConvergenceChart({ history, iter }) {
+export function ConvergenceChart({ history, iter, selected, onSelect }) {
   if (history.length === 0) {
     return <div className="chart-empty">No complete tour yet</div>;
   }
@@ -46,10 +46,20 @@ export function ConvergenceChart({ history, iter }) {
       {history.some((h) => h.changed) && (
         <text x={W - M.right} y={M.top + 8} className="axis-label change-label" textAnchor="end">┆ map edited</text>
       )}
-      {history.map((h) => (
-        <circle key={`${h.iter}-${h.changed ? 'c' : 'i'}`} cx={x(h.iter)} cy={y(h.length)} r={2.5} className={h.changed ? 'dot changed' : 'dot'}>
-          <title>{`tour ${h.iter}: ${h.length.toFixed(4)}${h.changed ? ' (map changed)' : ''}`}</title>
-        </circle>
+      {selected !== null && history[selected] && (
+        <line x1={x(history[selected].iter)} x2={x(history[selected].iter)} y1={M.top} y2={H - M.bottom} className="selected-marker" />
+      )}
+      {history.map((h, index) => (
+        <g key={index} className="point" onClick={() => onSelect(index)}>
+          <circle cx={x(h.iter)} cy={y(h.length)} r={7} className="hit" />
+          <circle
+            cx={x(h.iter)}
+            cy={y(h.length)}
+            r={index === selected ? 4.5 : 2.5}
+            className={`dot${h.changed ? ' changed' : ''}${index === selected ? ' selected' : ''}`}
+          />
+          <title>{`tour ${h.iter}: ${h.length.toFixed(4)}${h.changed ? ' (map changed)' : ''} — click to view`}</title>
+        </g>
       ))}
     </svg>
   );

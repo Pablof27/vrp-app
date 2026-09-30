@@ -99,3 +99,19 @@ test('map edits preserve the active ant, progress, pheromones and completed tour
   assert.ok(Math.abs(sim.bestPath.length - 1.4) < 1e-12);
   assert.equal(sim.history.at(-1).changed, true);
 });
+
+test('history keeps each best route with the map it was found on', () => {
+  const sim = createSimulation(nodes, params);
+  advanceFast(sim, params, 1);
+  const found = sim.history[0];
+  assert.deepEqual(found.path, sim.bestPath.path);
+  assert.notEqual(found.path, sim.bestPath.path);
+  assert.equal(found.nodes, sim.vrp.nodes);
+
+  const movedNodes = nodes.map((node) => node.id === 1 ? { ...node, x: 0.9 } : node);
+  updateSimulation(sim, movedNodes, params);
+  const edited = sim.history.at(-1);
+  assert.equal(edited.nodes, movedNodes);
+  assert.equal(found.nodes[1].x, 0.6);
+  assert.ok(edited.length > found.length);
+});

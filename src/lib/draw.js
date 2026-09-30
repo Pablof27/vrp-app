@@ -131,6 +131,12 @@ export function drawPolyline(ctx, points, scale, color, width, dash = []) {
   ctx.restore();
 }
 
+export function drawTrips(ctx, nodes, path, scale, width) {
+  splitTrips(path).forEach((trip, k) => {
+    drawPolyline(ctx, trip.map((i) => nodes[i]), scale, TRIP_COLORS[k % TRIP_COLORS.length], width);
+  });
+}
+
 export function drawDepot(ctx, depot, scale, size, theme) {
   const x = depot.x * scale;
   const y = depot.y * scale;

@@ -80,7 +80,7 @@ export function updateSimulation(sim, nodes, params) {
     const repaired = colony.repairPath(sim.vrp, sim.bestPath.path.map((i) => newIndexOf[i]));
     sim.bestPath.path = repaired.path;
     sim.bestPath.length = repaired.length;
-    const point = { iter: sim.iter, length: repaired.length, changed: true };
+    const point = historyEntry(sim, true);
     const last = sim.history[sim.history.length - 1];
     // Coalesce consecutive edits (e.g. dragging) that happen within the same tour count.
     if (last?.changed && last.iter === sim.iter) sim.history[sim.history.length - 1] = point;
@@ -127,8 +127,13 @@ function ensureAnt(sim) {
   return sim.ant;
 }
 
+function historyEntry(sim, changed) {
+  const entry = { iter: sim.iter, length: sim.bestPath.length, path: sim.bestPath.path.slice(), nodes: sim.vrp.nodes };
+  return changed ? { ...entry, changed: true } : entry;
+}
+
 function recordImprovement(sim, before) {
-  if (sim.bestPath.length < before) sim.history.push({ iter: sim.iter, length: sim.bestPath.length });
+  if (sim.bestPath.length < before) sim.history.push(historyEntry(sim, false));
 }
 
 function completeAnt(sim, state, mp) {

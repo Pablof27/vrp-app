@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import {
-  THEMES, WORLD_HEIGHT, antColor, drawDepot, drawPheromones, drawPolyline, nodeRadius, useCanvasSize,
+  THEMES, WORLD_HEIGHT, antColor, drawDepot, drawPheromones, drawPolyline, drawTrips, nodeRadius, useCanvasSize,
 } from '../lib/draw.js';
 import { withId } from '../lib/nodes.js';
 
@@ -11,12 +11,58 @@ function antPosition(ant, nodes) {
   return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
 }
 
+function drawNodes(ctx, nodes, scale, theme, selected, visited) {
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  nodes.forEach((node, i) => {
+    if (i === 0) return;
+    const x = node.x * scale;
+    const y = node.y * scale;
+    ctx.beginPath();
+    ctx.arc(x, y, nodeRadius(node.demand), 0, Math.PI * 2);
+    ctx.fillStyle = theme.node;
+    ctx.globalAlpha = visited.has(i) ? 0.45 : 1;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = i === selected ? 3 : 1.5;
+    ctx.strokeStyle = i === selected ? theme.selected : theme.nodeStroke;
+    ctx.stroke();
+    ctx.fillStyle = theme.text;
+    ctx.font = '600 10px system-ui, sans-serif';
+    ctx.fillText(String(node.demand), x, y + 0.5);
+  });
+
+  if (nodes.length > 0) {
+    drawDepot(ctx, nodes[0], scale, 18, theme);
+    if (selected === 0) {
+      ctx.strokeStyle = theme.selected;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(nodes[0].x * scale - 11, nodes[0].y * scale - 11, 22, 22);
+    }
+  }
+}
+
+// Historical entries are drawn on the map they were found on, which may differ from the current one.
+function drawBestView(ctx, sim, props, scale, theme) {
+  const entry = props.bestEntry;
+  const nodes = entry ? entry.nodes : props.nodes;
+  const routeNodes = entry ? entry.nodes : sim?.vrp.nodes;
+  const path = entry ? entry.path : sim?.bestPath.path ?? [];
+  if (routeNodes && path.length > 1) drawTrips(ctx, routeNodes, path, scale, 3);
+  drawNodes(ctx, nodes, scale, theme, entry ? null : props.selected, new Set());
+}
+
 function drawScene(ctx, sim, props, { width, dpr }) {
   const theme = THEMES.dark;
   const scale = width;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.fillStyle = theme.background;
   ctx.fillRect(0, 0, width, width * WORLD_HEIGHT);
+
+  if (props.view === 'best') {
+    drawBestView(ctx, sim, props, scale, theme);
+    return;
+  }
 
   const simNodes = sim?.vrp.nodes;
   const ant = sim?.ant;
@@ -36,36 +82,7 @@ function drawScene(ctx, sim, props, { width, dpr }) {
     }
   }
 
-  const visited = new Set(ant?.state.path);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  props.nodes.forEach((node, i) => {
-    if (i === 0) return;
-    const x = node.x * scale;
-    const y = node.y * scale;
-    const r = nodeRadius(node.demand);
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = theme.node;
-    ctx.globalAlpha = visited.has(i) ? 0.45 : 1;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = i === props.selected ? 3 : 1.5;
-    ctx.strokeStyle = i === props.selected ? theme.selected : theme.nodeStroke;
-    ctx.stroke();
-    ctx.fillStyle = theme.text;
-    ctx.font = '600 10px system-ui, sans-serif';
-    ctx.fillText(String(node.demand), x, y + 0.5);
-  });
-
-  if (props.nodes.length > 0) {
-    drawDepot(ctx, props.nodes[0], scale, 18, theme);
-    if (props.selected === 0) {
-      ctx.strokeStyle = theme.selected;
-      ctx.lineWidth = 3;
-      ctx.strokeRect(props.nodes[0].x * scale - 11, props.nodes[0].y * scale - 11, 22, 22);
-    }
-  }
+  drawNodes(ctx, props.nodes, scale, theme, props.selected, new Set(ant?.state.path));
 
   if (ant && simNodes.length > 1) {
     const position = antPosition(ant, simNodes);
@@ -81,13 +98,14 @@ function drawScene(ctx, sim, props, { width, dpr }) {
 
 export function MapCanvas({
   simRef, nodes, onNodesChange, selected, onSelect, tool, newDemand, pheromoneStyle, showBestOverlay, showAntTrace,
+  view, bestEntry,
 }) {
   const canvasRef = useRef(null);
   const size = useCanvasSize(canvasRef);
   const dragRef = useRef(null);
   const propsRef = useRef(null);
   const dirtyRef = useRef(true);
-  propsRef.current = { nodes, selected, pheromoneStyle, showBestOverlay, showAntTrace, size };
+  propsRef.current = { nodes, selected, pheromoneStyle, showBestOverlay, showAntTrace, view, bestEntry, size };
 
   useEffect(() => {
     dirtyRef.current = true;

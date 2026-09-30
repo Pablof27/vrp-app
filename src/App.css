@@ -140,6 +140,17 @@ input:disabled { opacity: 0.6; }
 .chart .dot.changed { fill: var(--explore); }
 .chart .change { stroke: var(--explore); stroke-dasharray: 3 3; opacity: 0.6; }
 .chart .change-label { fill: var(--explore); }
+.chart .point { cursor: pointer; }
+.chart .hit { fill: transparent; }
+.chart .dot.selected { stroke: var(--text); stroke-width: 1.5; }
+.chart .selected-marker { stroke: var(--text); stroke-width: 1; opacity: 0.5; }
+
+.history-nav { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.history-controls { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.history-controls input[type='range'] { flex: 1; min-width: 0; }
+.history-controls button { padding: 3px 9px; }
+.history-controls button.active { background: #3a4668; border-color: #56648c; }
+.history-edited { color: var(--explore); }
 .chart-empty, .muted { color: var(--muted); font-size: 12px; }
 
 .prob-header { display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 6px; }
